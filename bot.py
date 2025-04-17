@@ -12,23 +12,38 @@ BINANCE_KEY = os.getenv("BINANCE_KEY")
 BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.json
-    message = f"📈 {data.get('action', 'SIGNAL')} | {data.get('symbol', '')} | TF: {data.get('timeframe', '')}\n💰 Entry: {data.get('entry', '')}"
-
+def send_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": message}
+    payload = {"chat_id": CHAT_ID, "text": text}
     requests.post(url, json=payload)
 
+@app.route("/webhook", methods=["POST"])
+def webhook():
     try:
-        if data.get("action") == "LONG":
-            client.futures_create_order(symbol=data.get("symbol", "BTCUSDT"), side="BUY", type="MARKET", quantity=0.01)
-        elif data.get("action") == "SHORT":
-            client.futures_create_order(symbol=data.get("symbol", "BTCUSDT"), side="SELL", type="MARKET", quantity=0.01)
+        data = request.json
+        send_telegram(f"✅ Webhook received:\n{json.dumps(data, indent=2)}")
+
+        action = data.get("action")
+        symbol = data.get("symbol", "BTCUSDT")
+        timeframe = data.get("timeframe", "")
+        entry = data.get("entry", "")
+
+        msg = f"📈 {action} | {symbol} | TF: {timeframe}\n💰 Entry: {entry}"
+        send_telegram(msg)
+
+        if action == "LONG":
+            client.futures_create_order(symbol=symbol, side="BUY", type="MARKET", quantity=0.01)
+            send_telegram("🚀 LONG order placed.")
+        elif action == "SHORT":
+            client.futures_create_order(symbol=symbol, side="SELL", type="MARKET", quantity=0.01)
+            send_telegram("🔻 SHORT order placed.")
     except Exception as e:
-        error_message = f"⚠ Binance API error: {e}"
-        requests.post(url, json={"chat_id": CHAT_ID, "text": error_message})
+        send_telegram(f"⚠ Error: {e}")
+    return "ok"
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
+
 
     return "ok"
 
