@@ -6,10 +6,10 @@ from binance.client import Client
 
 app = Flask(__name__)
 
-TOKEN = os.getenv("8043421905:AAFBBxqBkSBiHrR6BrTYUow4PKl6QGFbIUY")
-CHAT_ID = os.getenv("386425654")
-BINANCE_KEY = os.getenv("09cfd0f1cddc27bf2e45185356d21c8c4911abb8f34768f5400cca26f0928113")
-BINANCE_SECRET = os.getenv("cabe13687bab1b8df4d5cacfc8161e18e2d05fdff3cd79c595ab511db8cf97a7")
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+BINANCE_KEY = os.getenv("BINANCE_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
 
 @app.route("/webhook", methods=["POST"])
@@ -34,3 +34,4 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
+
