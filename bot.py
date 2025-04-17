@@ -1,4 +1,4 @@
-# bot.py
+import os
 import json
 import requests
 from flask import Flask, request
@@ -6,17 +6,16 @@ from binance.client import Client
 
 app = Flask(__name__)
 
-with open("config.json") as f:
-    config = json.load(f)
-
-TOKEN = config["bot_token"]
-CHAT_ID = config["chat_id"]
-client = Client(config["binance_api_key"], config["binance_api_secret"], testnet=True)
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+BINANCE_KEY = os.getenv("BINANCE_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET")
+client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.json
-    message = f"\u2705 {data.get('action', 'SIGNAL')} | {data.get('symbol', '')} | TF: {data.get('timeframe', '')}\n\ud83d\udcb0 Вхід: {data.get('entry', '')}"
+    message = f"📈 {data.get('action', 'SIGNAL')} | {data.get('symbol', '')} | TF: {data.get('timeframe', '')}\n💰 Entry: {data.get('entry', '')}"
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message}
@@ -28,7 +27,7 @@ def webhook():
         elif data.get("action") == "SHORT":
             client.futures_create_order(symbol=data.get("symbol", "BTCUSDT"), side="SELL", type="MARKET", quantity=0.01)
     except Exception as e:
-        error_message = f"\u26a0 Binance API error: {e}"
+        error_message = f"⚠ Binance API error: {e}"
         requests.post(url, json={"chat_id": CHAT_ID, "text": error_message})
 
     return "ok"
