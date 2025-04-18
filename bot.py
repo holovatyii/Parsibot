@@ -34,10 +34,9 @@ def webhook():
 
         send_telegram(f"📈 {action} | {symbol} | TF: {timeframe}\n💰 Entry: {entry_price}\n📊 Обсяг: {quantity} ({risk_percent}% від балансу)")
 
-        # Відкриття угоди
         if action == "LONG":
             client.futures_create_order(symbol=symbol, side="BUY", type="MARKET", quantity=quantity)
-            stop_price = round(entry_price * 0.92, 2)  # -8% страховий SL
+            stop_price = round(entry_price * 0.92, 2)
             client.futures_create_order(
                 symbol=symbol,
                 side="SELL",
@@ -49,26 +48,6 @@ def webhook():
 
         elif action == "SHORT":
             client.futures_create_order(symbol=symbol, side="SELL", type="MARKET", quantity=quantity)
-            stop_price = round(entry_price * 1.08, 2)  # +8% страховий SL
-            client.futures_create_order(
-                symbol=symbol,
-                side="BUY",
-                type="STOP_MARKET",
-                stopPrice=str(stop_price),
-                closePosition=True
-            )
-            send_telegram(f"🔻 SHORT placed | SL set at {stop_price}")
-
-    except Exception as e:
-        send_telegram(f"⚠ Error: {e}")
-    return "ok"
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
-    @app.route("/ip")
-def show_ip():
-    import requests
-    ip = requests.get("https://api.ipify.org").text
-    return f"Render IP: {ip}"
+            stop_price = round(entry_price * 1.08, 2)
 
 
