@@ -7,44 +7,47 @@ from binance.client import Client
 app = Flask(__name__)
 
 # Змінні середовища
-TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-BINANCE_KEY = os.getenv("BINANCE_KEY")
-BINANCE_SECRET = os.getenv("BINANCE_SECRET")
+TOKEN = os.getenv("BOT_TOKEN")         # Telegram Bot Token
+CHAT_ID = os.getenv("CHAT_ID")         # Твій Telegram chat ID
+BINANCE_KEY = os.getenv("BINANCE_KEY") # Binance API Key (testnet)
+BINANCE_SECRET = os.getenv("BINANCE_SECRET") # Binance API Secret (testnet)
 
-# Binance клієнт (testnet)
+# Binance клієнт
 client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
-client.API_URL = 'https://testnet.binancefuture.com/fapi'
+client.API_URL = 'https://testnet.binancefuture.com'
 
-# Функція надсилання в Telegram
+# Функція надсилання повідомлення у Telegram
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text}
     requests.post(url, json=payload)
 
-# Webhook для сигналів TradingView
+# Webhook для TradingView
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    try:
-        if request.headers.get('Content-Type') != 'application/json':
-            return "Unsupported Media Type", 415
+    if request.headers.get("Content-Type") != "application/json":
+        return "Unsupported Media Type", 415
 
+    try:
         data = request.json
         symbol = data.get("symbol", "BTCUSDT")
         entry_price = float(data.get("entry"))
         action = data.get("action", "LONG")
         timeframe = data.get("timeframe", "")
 
-        usdt_balance = float(client.futures_account_balance()[1]['balance'])
+        # Отримати баланс
+        balances = client.futures_account_balance()
+        usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
+        usdt = float(usdt_balance['balance'])
+
         risk_percent = 1
-        usd_amount = usdt_balance * (risk_percent / 100)
+        usd_amount = usdt * (risk_percent / 100)
         quantity = round(usd_amount / entry_price, 3)
 
-        if quantity <= 0:
-            send_telegram("❌ Неможливо виконати угоду: обсяг = 0. Занадто малий баланс.")
-            return "ok"
+        send_telegram(f"📈 {action} | {symbol} | TF: {timeframe}\n💰 Entry: {entry_price}\n📊 Обсяг: {quantity} ({risk_percent}% від балансу)")
 
-        send_telegram(f"\ud83d\udcc8 {action} | {symbol} | TF: {timeframe}\n\ud83d\udcb0 Entry: {entry_price}\n\ud83d\udcca \u041eбсяг: {quantity} ({risk_percent}% від балансу)")
+        if quantity <= 0:
+            raise Exception("Обсяг <= 0, перевір баланс")
 
         if action == "LONG":
             client.futures_create_order(symbol=symbol, side="BUY", type="MARKET", quantity=quantity)
@@ -56,7 +59,7 @@ def webhook():
                 stopPrice=str(stop_price),
                 closePosition=True
             )
-            send_telegram(f"\ud83d\ude80 LONG placed | SL set at {stop_price}")
+            send_telegram(f"🚀 LONG placed | SL set at {stop_price}")
 
         elif action == "SHORT":
             client.futures_create_order(symbol=symbol, side="SELL", type="MARKET", quantity=quantity)
@@ -68,20 +71,22 @@ def webhook():
                 stopPrice=str(stop_price),
                 closePosition=True
             )
-            send_telegram(f"\ud83d\udd3b SHORT placed | SL set at {stop_price}")
+            send_telegram(f"🔻 SHORT placed | SL set at {stop_price}")
 
     except Exception as e:
-        send_telegram(f"\u26a0 Error: {e}")
+        send_telegram(f"⚠ Error: {e}")
     return "ok"
 
-# Перевірка IP
+# Додатковий роут для перевірки IP
 @app.route("/ip")
 def show_ip():
     ip = requests.get("https://api.ipify.org").text
     return f"Render IP: {ip}"
 
+# Запуск Flask
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
+
 
 
 
