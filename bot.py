@@ -25,13 +25,19 @@ def send_telegram(text):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        data = request.json
+        # Друкуємо заголовки та дані для дебагу
+        print("Headers:", request.headers)
+        print("Raw data:", request.data)
+
+        # Пробуємо вручну розпарсити JSON
+        data = json.loads(request.data)
+
         symbol = data.get("symbol", "BTCUSDT")
         entry_price = float(data.get("entry"))
         action = data.get("action", "LONG")
         timeframe = data.get("timeframe", "")
 
-        # Розрахунок обсягу на основі балансу
+        # Розрахунок обсягу
         usdt_balance = float(client.futures_account_balance()[1]['balance'])
         risk_percent = 1
         usd_amount = usdt_balance * (risk_percent / 100)
@@ -66,6 +72,7 @@ def webhook():
     except Exception as e:
         send_telegram(f"⚠ Error: {e}")
     return "ok"
+
 
 # /ip для перевірки Render IP
 @app.route("/ip")
