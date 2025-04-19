@@ -3,7 +3,6 @@ import json
 import requests
 from flask import Flask, request
 from binance.client import Client
-from binance.exceptions import BinanceAPIException
 
 app = Flask(__name__)
 
@@ -13,34 +12,31 @@ CHAT_ID = os.getenv("CHAT_ID")
 BINANCE_KEY = os.getenv("BINANCE_KEY")
 BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 
-# Binance клієнт (тільки для TESTNET!)
-client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
+# Binance клієнт
+client = Client(BINANCE_KEY, BINANCE_SECRET)
+client.API_URL = 'https://fapi.binance.com'
 
-# Функція надсилання повідомлення в Telegram
+# Надсилання повідомлення в Telegram
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text}
     requests.post(url, json=payload)
 
-# Webhook endpoint для TradingView
+# Webhook
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    if request.headers.get("Content-Type") != "application/json":
-        return "Unsupported Media Type", 415
-
     try:
-        data = request.json
+        data = request.get_json(force=True)
         symbol = data.get("symbol", "BTCUSDT")
         entry_price = float(data.get("entry"))
         action = data.get("action", "LONG")
         timeframe = data.get("timeframe", "")
 
-        # Баланс USDT
+        # Баланс
         balances = client.futures_account_balance()
         usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
         usdt = float(usdt_balance['balance'])
 
-        # Розрахунок розміру позиції
         risk_percent = 1
         usd_amount = usdt * (risk_percent / 100)
         quantity = round(usd_amount / entry_price, 3)
@@ -74,14 +70,11 @@ def webhook():
             )
             send_telegram(f"🔻 SHORT placed | SL set at {stop_price}")
 
-    except BinanceAPIException as e:
-        send_telegram(f"❌ Binance API Error: {e.message}")
     except Exception as e:
-        send_telegram(f"⚠️ Error: {e}")
-
+        send_telegram(f"⚠ Error: {e}")
     return "ok"
 
-# Тестовий ендпоінт для перевірки IP
+# Перевірка IP
 @app.route("/ip")
 def show_ip():
     ip = requests.get("https://api.ipify.org").text
@@ -90,6 +83,7 @@ def show_ip():
 # Запуск Flask
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
+
 
 
 
