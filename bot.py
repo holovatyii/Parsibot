@@ -7,22 +7,26 @@ from binance.client import Client
 app = Flask(__name__)
 
 # Змінні середовища
-TOKEN = os.getenv("BOT_TOKEN")         # Telegram Bot Token
-CHAT_ID = os.getenv("CHAT_ID")         # Твій Telegram chat ID
-BINANCE_KEY = os.getenv("BINANCE_KEY") # Binance API Key (testnet)
-BINANCE_SECRET = os.getenv("BINANCE_SECRET") # Binance API Secret (testnet)
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+BINANCE_KEY = os.getenv("BINANCE_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 
-# Binance клієнт
-client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
+# Binance Testnet клієнт
+client = Client(BINANCE_KEY, BINANCE_SECRET)
+client.FUTURES_URL = 'https://testnet.binancefuture.com/fapi'
 client.API_URL = 'https://testnet.binancefuture.com'
 
-# Функція надсилання повідомлення у Telegram
+# Надсилання повідомлення у Telegram
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text}
-    requests.post(url, json=payload)
+    try:
+        requests.post(url, json=payload)
+    except:
+        pass
 
-# Webhook для TradingView
+# Webhook маршрут
 @app.route("/webhook", methods=["POST"])
 def webhook():
     if request.headers.get("Content-Type") != "application/json":
@@ -35,10 +39,10 @@ def webhook():
         action = data.get("action", "LONG")
         timeframe = data.get("timeframe", "")
 
-        # Отримати баланс
+        # Баланс
         balances = client.futures_account_balance()
-        usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
-        usdt = float(usdt_balance['balance'])
+        usdt_balance = next((item for item in balances if item['asset'] == 'USDT'), None)
+        usdt = float(usdt_balance['balance']) if usdt_balance else 0
 
         risk_percent = 1
         usd_amount = usdt * (risk_percent / 100)
@@ -77,7 +81,7 @@ def webhook():
         send_telegram(f"⚠ Error: {e}")
     return "ok"
 
-# Додатковий роут для перевірки IP
+# Перевірка IP Render
 @app.route("/ip")
 def show_ip():
     ip = requests.get("https://api.ipify.org").text
