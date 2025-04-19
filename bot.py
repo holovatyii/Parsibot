@@ -14,7 +14,7 @@ BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 
 # Binance клієнт
 client = Client(BINANCE_KEY, BINANCE_SECRET)
-client.API_URL = 'https://fapi.binance.com'
+client.API_URL = 'https://testnet.binancefuture.com'
 
 # Telegram
 def send_telegram(text):
