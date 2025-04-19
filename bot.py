@@ -80,10 +80,19 @@ def show_ip():
     ip = requests.get("https://api.ipify.org").text
     return f"Render IP: {ip}"
 
+# Перевірка Binance балансу
+@app.route("/balance")
+def check_balance():
+    try:
+        balances = client.futures_account_balance()
+        usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
+        return f"USDT balance: {usdt_balance['balance']}"
+    except Exception as e:
+        return f"Error: {e}"
+
 # Запуск Flask
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
-
 
 
 
