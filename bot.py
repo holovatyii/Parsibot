@@ -6,23 +6,22 @@ from binance.client import Client
 
 app = Flask(__name__)
 
-# Змінні середовища або заміни прямо тут
-TOKEN = os.getenv("BOT_TOKEN") or "ТУТ_ТВОЙ_ТЕЛЕГРАМ_ТОКЕН"
-CHAT_ID = os.getenv("CHAT_ID") or "ТУТ_ТВОЙ_CHAT_ID"
-BINANCE_KEY = os.getenv("BINANCE_KEY") or "ТУТ_API_KEY"
-BINANCE_SECRET = os.getenv("BINANCE_SECRET") or "ТУТ_SECRET_KEY"
+# Змінні середовища
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+BINANCE_KEY = os.getenv("BINANCE_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 
-# Binance клієнт (mainnet)
+# Binance клієнт
 client = Client(BINANCE_KEY, BINANCE_SECRET)
-client.API_URL = 'https://fapi.binance.com'  # Mainnet Futures
+client.API_URL = 'https://fapi.binance.com'
 
-# Надсилання повідомлень у Telegram
+# Надсилання повідомлення в Telegram
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text}
     requests.post(url, json=payload)
 
-# Webhook
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -32,7 +31,7 @@ def webhook():
         action = data.get("action", "LONG")
         timeframe = data.get("timeframe", "")
 
-        # Отримати баланс
+        # Баланс
         balances = client.futures_account_balance()
         usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
         usdt = float(usdt_balance['balance'])
@@ -74,12 +73,11 @@ def webhook():
         send_telegram(f"⚠ Error: {e}")
     return "ok"
 
-# Додатково: перевірка IP
 @app.route("/ip")
 def show_ip():
     ip = requests.get("https://api.ipify.org").text
     return f"Render IP: {ip}"
 
-# Запуск Flask
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
+
