@@ -6,28 +6,25 @@ from binance.client import Client
 
 app = Flask(__name__)
 
-# Змінні середовища
-TOKEN = os.getenv("BOT_TOKEN")                     # Токен Telegram бота
-CHAT_ID = os.getenv("CHAT_ID")                     # ID чату
-BINANCE_KEY = os.getenv("BINANCE_KEY")             # Binance API Key (Testnet)
-BINANCE_SECRET = os.getenv("BINANCE_SECRET")       # Binance Secret (Testnet)
+# Змінні середовища або заміни прямо тут
+TOKEN = os.getenv("BOT_TOKEN") or "ТУТ_ТВОЙ_ТЕЛЕГРАМ_ТОКЕН"
+CHAT_ID = os.getenv("CHAT_ID") or "ТУТ_ТВОЙ_CHAT_ID"
+BINANCE_KEY = os.getenv("BINANCE_KEY") or "ТУТ_API_KEY"
+BINANCE_SECRET = os.getenv("BINANCE_SECRET") or "ТУТ_SECRET_KEY"
 
-# Binance клієнт (TESTNET)
-client = Client(BINANCE_KEY, BINANCE_SECRET, testnet=True)
-client.API_URL = 'https://testnet.binancefuture.com'
+# Binance клієнт (mainnet)
+client = Client(BINANCE_KEY, BINANCE_SECRET)
+client.API_URL = 'https://fapi.binance.com'  # Mainnet Futures
 
-# Надсилання повідомлення в Telegram
+# Надсилання повідомлень у Telegram
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text}
     requests.post(url, json=payload)
 
-# Webhook для TradingView
+# Webhook
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    if request.headers.get("Content-Type") != "application/json":
-        return "Unsupported Media Type", 415
-
     try:
         data = request.get_json(force=True)
         symbol = data.get("symbol", "BTCUSDT")
@@ -35,7 +32,7 @@ def webhook():
         action = data.get("action", "LONG")
         timeframe = data.get("timeframe", "")
 
-        # Отримання балансу
+        # Отримати баланс
         balances = client.futures_account_balance()
         usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
         usdt = float(usdt_balance['balance'])
@@ -77,12 +74,12 @@ def webhook():
         send_telegram(f"⚠ Error: {e}")
     return "ok"
 
-# Для перевірки IP сервера
+# Додатково: перевірка IP
 @app.route("/ip")
 def show_ip():
     ip = requests.get("https://api.ipify.org").text
     return f"Render IP: {ip}"
 
-# Запуск сервера Flask
+# Запуск Flask
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
