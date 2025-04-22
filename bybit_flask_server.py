@@ -1,56 +1,52 @@
 from flask import Flask, request
 from pybit.unified_trading import HTTP
-import json
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
 
-# Завантаження API ключів з config.json
-with open("config.json") as f:
-    config = json.load(f)
+# Завантаження ключів з .env
+api_key = os.getenv("BYBIT_API_KEY")
+api_secret = os.getenv("BYBIT_API_SECRET")
 
-api_key = config["bybit_api_key"]
-api_secret = config["bybit_api_secret"]
-
+# ініціалізація сесії
 session = HTTP(
     testnet=True,
     api_key=api_key,
     api_secret=api_secret
 )
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Bybit bot is running."
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.json
-    print("📥 Отриманий webhook:", data)
-
-    if not data or "symbol" not in data or "side" not in data:
-        return {"error": "Некоректний запит"}, 400
+    print("🔔 Сигнал отримано:", data)
 
     try:
-        balance_data = session.get_wallet_balance(accountType="UNIFIED")
-        balance = float(balance_data["result"]["list"][0]["totalEquity"])
-        print(f"💰 Баланс: {balance}")
+        # Отримання балансу
+        balance = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
+        usdt_balance = float(balance["result"]["list"][0]["coin"][0]["walletBalance"])
+        print(f"💰 Баланс: {usdt_balance}")
 
-        if balance < 10:
-            return {"error": "Недостатньо коштів"}, 400
+        if usdt_balance < 10:
+            return "❌ Недостатньо балансу", 400
 
-        response = session.place_order(
+        # Надсилання ордеру
+        order = session.place_order(
             category="linear",
-            symbol=data["symbol"],
-            side=data["side"],
+            symbol="BTCUSDT",
+            side="Buy",
             order_type="Market",
             qty="0.01",
             time_in_force="GoodTillCancel"
         )
-        print("📦 Ордер:", response)
-        return {"success": True, "order": response}
+        print("📦 Ордер:", order)
+        return "✅ Ордер відправлено"
 
     except Exception as e:
-        print("❌ Помилка:", str(e))
-        return {"error": str(e)}, 500
+        print("❗ Помилка:", str(e))
+        return f"❗ Сталася помилка: {str(e)}", 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5002)
+    app.run(debug=True, port=5001)
