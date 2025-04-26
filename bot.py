@@ -7,13 +7,13 @@ import requests
 with open("config.json") as f:
     config = json.load(f)
 
-api_key = config.get("api_key")
-api_secret = config.get("api_secret")
-default_symbol = config.get("symbol", "SOLUSDT")
-default_base_qty = float(config.get("base_qty", 0.01))
-webhook_password = config.get("webhook_password")
-telegram_token = config.get("telegram_token")
-telegram_chat_id = config.get("telegram_chat_id")
+api_key = config["api_key"]
+api_secret = config["api_secret"]
+default_symbol = config["symbol"]
+default_base_qty = config["base_qty"]
+webhook_password = config["webhook_password"]
+telegram_token = config["telegram_token"]
+telegram_chat_id = config["telegram_chat_id"]
 
 # Ініціалізація Flask
 app = Flask(__name__)
@@ -41,7 +41,6 @@ def webhook():
         data = request.json
 
         if not data or data.get("password") != webhook_password:
-            print("❌ Невірний пароль або пустий запит")
             return {"error": "Unauthorized"}, 401
 
         side = data.get("side", "Buy")
@@ -49,12 +48,9 @@ def webhook():
         qty = data.get("qty", default_base_qty)
 
         try:
-            qty = float(qty)
+            qty = float(qty)  # Перетворюємо qty на float
         except (ValueError, TypeError):
-            print("❌ Неправильний формат qty:", qty)
             return {"error": "Invalid quantity"}, 400
-
-        print(f"👉 Отримано сигнал: {side} {symbol} {qty}")
 
         order = session.place_order(
             category="linear",
@@ -66,21 +62,21 @@ def webhook():
         )
 
         msg = f"✅ Ордер відправлено!\nПара: {symbol}\nСторона: {side}\nКількість: {qty}\n\nВідповідь: {order}"
+        print(msg)
         send_telegram_message(msg)
+
         return {"success": True, "order": order}
 
     except Exception as e:
-        print(f"🔥 Помилка всередині webhook: {str(e)}")
-        send_telegram_message(f"❌ Помилка: {str(e)}")
+        error_msg = f"🔥 Помилка всередині webhook: {str(e)}"
+        print(error_msg)
+        send_telegram_message(error_msg)
         return {"error": str(e)}, 500
-
 
 # Запуск Flask
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на порту 5000")
-    import os
-port = int(os.environ.get("PORT", 5000))
-app.run(host="0.0.0.0", port=port)
+    app.run(port=5000)
 
 
 
