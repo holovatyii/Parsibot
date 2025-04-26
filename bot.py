@@ -7,13 +7,13 @@ import requests
 with open("config.json") as f:
     config = json.load(f)
 
-api_key = config["api_key"]
-api_secret = config["api_secret"]
-default_symbol = config["symbol"]
-default_base_qty = config["base_qty"]
-webhook_password = config["webhook_password"]
-telegram_token = config["telegram_token"]
-telegram_chat_id = config["telegram_chat_id"]
+api_key = config.get("api_key")
+api_secret = config.get("api_secret")
+default_symbol = config.get("symbol", "SOLUSDT")
+default_base_qty = float(config.get("base_qty", 0.01))
+webhook_password = config.get("webhook_password")
+telegram_token = config.get("telegram_token")
+telegram_chat_id = config.get("telegram_chat_id")
 
 # Ініціалізація Flask
 app = Flask(__name__)
@@ -47,7 +47,7 @@ def webhook():
     qty = data.get("qty", default_base_qty)
 
     try:
-        qty = float(qty)  # Перетворюємо qty на float
+        qty = float(qty)
     except (ValueError, TypeError):
         return {"error": "Invalid quantity"}, 400
 
