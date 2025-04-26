@@ -37,21 +37,25 @@ def send_telegram_message(message):
 # Вебхук маршрут
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
-
-    if not data or data.get("password") != webhook_password:
-        return {"error": "Unauthorized"}, 401
-
-    side = data.get("side", "Buy")
-    symbol = data.get("symbol", default_symbol)
-    qty = data.get("qty", default_base_qty)
-
     try:
-        qty = float(qty)
-    except (ValueError, TypeError):
-        return {"error": "Invalid quantity"}, 400
+        data = request.json
 
-    try:
+        if not data or data.get("password") != webhook_password:
+            print("❌ Невірний пароль або пустий запит")
+            return {"error": "Unauthorized"}, 401
+
+        side = data.get("side", "Buy")
+        symbol = data.get("symbol", default_symbol)
+        qty = data.get("qty", default_base_qty)
+
+        try:
+            qty = float(qty)
+        except (ValueError, TypeError):
+            print("❌ Неправильний формат qty:", qty)
+            return {"error": "Invalid quantity"}, 400
+
+        print(f"👉 Отримано сигнал: {side} {symbol} {qty}")
+
         order = session.place_order(
             category="linear",
             symbol=symbol,
@@ -63,12 +67,13 @@ def webhook():
 
         msg = f"✅ Ордер відправлено!\nПара: {symbol}\nСторона: {side}\nКількість: {qty}\n\nВідповідь: {order}"
         send_telegram_message(msg)
-
         return {"success": True, "order": order}
+
     except Exception as e:
-        error_msg = f"❌ Помилка створення ордера: {str(e)}"
-        send_telegram_message(error_msg)
+        print(f"🔥 Помилка всередині webhook: {str(e)}")
+        send_telegram_message(f"❌ Помилка: {str(e)}")
         return {"error": str(e)}, 500
+
 
 # Запуск Flask
 if __name__ == '__main__':
