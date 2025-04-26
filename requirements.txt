@@ -1,3 +1,4 @@
 flask
+pybit
 requests
-python-binance
+
