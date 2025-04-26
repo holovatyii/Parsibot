@@ -1,83 +1,78 @@
-import os
+from flask import Flask, request
+from pybit.unified_trading import HTTP
 import json
 import requests
-from flask import Flask, request
-from binance.client import Client
 
+# Завантаження конфігурації
+with open("config.json") as f:
+    config = json.load(f)
+
+api_key = config["api_key"]
+api_secret = config["api_secret"]
+default_symbol = config["symbol"]
+default_base_qty = config["base_qty"]
+webhook_password = config["webhook_password"]
+telegram_token = config["telegram_token"]
+telegram_chat_id = config["telegram_chat_id"]
+
+# Ініціалізація Flask
 app = Flask(__name__)
 
-# Змінні середовища
-TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-BINANCE_KEY = os.getenv("BINANCE_KEY")
-BINANCE_SECRET = os.getenv("BINANCE_SECRET")
+# Ініціалізація сесії Bybit
+session = HTTP(
+    api_key=api_key,
+    api_secret=api_secret,
+    testnet=True
+)
 
-# Binance клієнт
-client = Client(BINANCE_KEY, BINANCE_SECRET)
-client.API_URL = 'https://fapi.binance.com'
-
-# Надсилання повідомлення в Telegram
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text}
-    requests.post(url, json=payload)
-
-@app.route("/webhook", methods=["POST"])
-def webhook():
+# Функція для відправки повідомлення в Telegram
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+    data = {"chat_id": telegram_chat_id, "text": message}
     try:
-        data = request.get_json(force=True)
-        symbol = data.get("symbol", "BTCUSDT")
-        entry_price = float(data.get("entry"))
-        action = data.get("action", "LONG")
-        timeframe = data.get("timeframe", "")
-
-        # Баланс
-        balances = client.futures_account_balance()
-        usdt_balance = next(item for item in balances if item['asset'] == 'USDT')
-        usdt = float(usdt_balance['balance'])
-
-        risk_percent = 1
-        usd_amount = usdt * (risk_percent / 100)
-        quantity = round(usd_amount / entry_price, 3)
-
-        send_telegram(f"📈 {action} | {symbol} | TF: {timeframe}\n💰 Entry: {entry_price}\n📊 Обсяг: {quantity} ({risk_percent}% від балансу)")
-
-        if quantity <= 0:
-            raise Exception("Обсяг <= 0, перевір баланс")
-
-        if action == "LONG":
-            client.futures_create_order(symbol=symbol, side="BUY", type="MARKET", quantity=quantity)
-            stop_price = round(entry_price * 0.92, 2)
-            client.futures_create_order(
-                symbol=symbol,
-                side="SELL",
-                type="STOP_MARKET",
-                stopPrice=str(stop_price),
-                closePosition=True
-            )
-            send_telegram(f"🚀 LONG placed | SL set at {stop_price}")
-
-        elif action == "SHORT":
-            client.futures_create_order(symbol=symbol, side="SELL", type="MARKET", quantity=quantity)
-            stop_price = round(entry_price * 1.08, 2)
-            client.futures_create_order(
-                symbol=symbol,
-                side="BUY",
-                type="STOP_MARKET",
-                stopPrice=str(stop_price),
-                closePosition=True
-            )
-            send_telegram(f"🔻 SHORT placed | SL set at {stop_price}")
-
+        requests.post(url, data=data)
     except Exception as e:
-        send_telegram(f"⚠ Error: {e}")
-    return "ok"
+        print(f"Telegram Error: {e}")
 
-@app.route("/ip")
-def show_ip():
-    ip = requests.get("https://api.ipify.org").text
-    return f"Render IP: {ip}"
+# Вебхук маршрут
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    if not data or data.get("password") != webhook_password:
+        return {"error": "Unauthorized"}, 401
+
+    side = data.get("side", "Buy")
+    symbol = data.get("symbol", default_symbol)
+    qty = data.get("qty", default_base_qty)
+
+    try:
+        qty = float(qty)  # Перетворюємо qty на float
+    except (ValueError, TypeError):
+        return {"error": "Invalid quantity"}, 400
+
+    try:
+        order = session.place_order(
+            category="linear",
+            symbol=symbol,
+            side=side,
+            order_type="Market",
+            qty=str(qty),
+            time_in_force="GoodTillCancel"
+        )
+
+        msg = f"✅ Ордер відправлено!\nПара: {symbol}\nСторона: {side}\nКількість: {qty}\n\nВідповідь: {order}"
+        send_telegram_message(msg)
+
+        return {"success": True, "order": order}
+    except Exception as e:
+        error_msg = f"❌ Помилка створення ордера: {str(e)}"
+        send_telegram_message(error_msg)
+        return {"error": str(e)}, 500
+
+# Запуск Flask
+if __name__ == '__main__':
+    print("🚀 Flask-сервер запущено на порту 5000")
+    app.run(port=5000)
+
 
