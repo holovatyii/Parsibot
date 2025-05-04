@@ -1,7 +1,8 @@
 flask
 pybit
 requests
-bybit-v5
+git+https://github.com/bybit-exchange/bybit-api-sdk-python.git
+
 
 
 
