@@ -8,8 +8,8 @@ from pybit.unified_trading import HTTP
 # === Config from environment ===
 api_key = os.environ["api_key"]
 api_secret = os.environ["api_secret"]
-symbol = os.environ.get("symbol", "SOLUSDT")
-base_qty = float(os.environ.get("base_qty", 1))
+default_symbol = os.environ.get("symbol", "SOLUSDT")
+default_base_qty = float(os.environ.get("base_qty", 1))
 webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
@@ -53,7 +53,8 @@ def webhook():
         return {"error": "unauthorized"}, 401
 
     side = data.get("side", "Buy")
-    qty = data.get("qty", base_qty)
+    symbol = data.get("symbol", default_symbol)  # 🔥 Тепер читає symbol із запиту
+    qty = data.get("qty", default_base_qty)
     tp = data.get("tp")
     sl = data.get("sl")
 
@@ -77,3 +78,4 @@ def webhook():
 if __name__ == "__main__":
     print("🚀 Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
+
