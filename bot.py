@@ -1,10 +1,9 @@
 import time
-import hmac
-import hashlib
-import requests
 import json
 import os
+import requests
 from flask import Flask, request
+from bybit import UnifiedMargin
 
 # === Завантаження з Environment ===
 api_key = os.environ["api_key"]
@@ -17,52 +16,41 @@ telegram_chat_id = os.environ["telegram_chat_id"]
 
 app = Flask(__name__)
 
-# === Надсилання повідомлення в Telegram ===
+# === Telegram логування ===
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
-    headers = {"Content-Type": "application/json; charset=utf-8"}
+    headers = {"Content-Type": "application/json"}
     try:
         requests.post(url, data=json.dumps(data), headers=headers)
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# === Raw POST до Bybit з повним підписом ===
-def place_order_raw(symbol, side, qty, tp=None, sl=None):
-    base_url = "https://api-testnet.bybit.com"
-    endpoint = "/v5/order/create"
-    timestamp = str(int(time.time() * 1000))
-    recv_window = "5000"
+# === SDK ініціалізація ===
+client = UnifiedMargin(api_key=api_key, api_secret=api_secret, testnet=True)
 
-    body = {
-        "category": "linear",
-        "symbol": symbol,
-        "side": side,
-        "order_type": "Market",
-        "qty": str(qty),
-        "time_in_force": "GoodTillCancel"
-    }
-    if tp:
-        body["take_profit"] = str(tp)
-    if sl:
-        body["stop_loss"] = str(sl)
+# === Функція для створення ордера через офіційний SDK ===
+def place_order_sdk(symbol, side, qty, tp=None, sl=None):
+    try:
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": side,
+            "orderType": "Market",
+            "qty": str(qty),
+            "timeInForce": "GoodTillCancel"
+        }
+        if tp:
+            order_data["takeProfit"] = str(tp)
+        if sl:
+            order_data["stopLoss"] = str(sl)
 
-    body_str = json.dumps(body, separators=(',', ':'), ensure_ascii=False)
-
-    # Формуємо sign з body
-    to_sign = f"api_key={api_key}&recv_window={recv_window}&timestamp={timestamp}&{body_str}"
-    sign = hmac.new(bytes(api_secret, "utf-8"), to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-
-    query = f"?api_key={api_key}&timestamp={timestamp}&sign={sign}&recv_window={recv_window}"
-    url = base_url + endpoint + query
-
-    headers = {
-        "Content-Type": "application/json"
-    }
-
-    response = requests.post(url, headers=headers, data=body_str)
-    print(f">> RAW POST: {response.status_code} | {response.text}")
-    return response.json()
+        response = client.order.create(order_data)
+        print(f">> SDK RESPONSE: {response}")
+        return response
+    except Exception as e:
+        print(f">> SDK ERROR: {e}")
+        return {"retCode": -1, "retMsg": str(e)}
 
 # === Webhook ===
 @app.route('/webhook', methods=['POST'])
@@ -85,7 +73,7 @@ def webhook():
         except (ValueError, TypeError):
             return {"error": "Invalid quantity"}, 400
 
-        order = place_order_raw(symbol, side, qty, tp, sl)
+        order = place_order_sdk(symbol, side, qty, tp, sl)
 
         msg = (
             f"✅ Ордер відправлено!\n"
@@ -111,5 +99,6 @@ def webhook():
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
+
 
 
