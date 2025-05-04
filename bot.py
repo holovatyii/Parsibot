@@ -25,7 +25,7 @@ session = HTTP(
     testnet=True
 )
 
-# Функція для надсилання повідомлення в Telegram з utf-8
+# Надсилання повідомлення в Telegram (з підтримкою UTF-8)
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
@@ -35,7 +35,7 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# Webhook маршрут
+# Обробка webhook
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -71,6 +71,10 @@ def webhook():
 
         order = session.place_order(**order_params)
 
+        # Консоль без емодзі
+        print(f"Order placed: {side} {symbol} qty={qty} TP={tp} SL={sl}")
+
+        # Повне повідомлення в Telegram
         msg = (
             f"✅ Ордер відправлено!\n"
             f"Пара: {symbol}\n"
@@ -79,20 +83,19 @@ def webhook():
             f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
             f"\nВідповідь: {order}"
         )
-        print(msg)
         send_telegram_message(msg)
 
         return {"success": True, "order": order}
 
     except Exception as e:
-        error_msg = f"🔥 Помилка всередині webhook: {str(e)}"
+        error_msg = f"Error inside webhook: {str(e)}"
         print(error_msg)
         send_telegram_message(error_msg)
         return {"error": str(e)}, 500
 
 # Запуск Flask
 if __name__ == '__main__':
-    print("🚀 Flask-сервер запущено на порту 5000")
+    print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
 
 
