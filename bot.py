@@ -25,16 +25,17 @@ session = HTTP(
     testnet=True
 )
 
-# Функція для відправки повідомлення в Telegram
+# Функція для надсилання повідомлення в Telegram (з правильним utf-8)
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
+    headers = {"Content-Type": "application/json; charset=utf-8"}
     try:
-        requests.post(url, data=data)
+        requests.post(url, data=json.dumps(data), headers=headers)
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# Вебхук маршрут
+# Webhook маршрут
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -50,7 +51,7 @@ def webhook():
         sl = data.get("sl")
 
         try:
-            qty = float(qty)  # Перетворюємо qty на float
+            qty = float(qty)
         except (ValueError, TypeError):
             return {"error": "Invalid quantity"}, 400
 
@@ -70,7 +71,14 @@ def webhook():
 
         order = session.place_order(**order_params)
 
-        msg = f"✅ Ордер відправлено!\nПара: {symbol}\nСторона: {side}\nКількість: {qty}\nTP: {tp or 'немає'} | SL: {sl or 'немає'}\n\nВідповідь: {order}"
+        msg = (
+            f"✅ Ордер відправлено!\n"
+            f"Пара: {symbol}\n"
+            f"Сторона: {side}\n"
+            f"Кількість: {qty}\n"
+            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
+            f"\nВідповідь: {order}"
+        )
         print(msg)
         send_telegram_message(msg)
 
