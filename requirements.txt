@@ -1,7 +1,8 @@
 flask
 pybit
 requests
-bybit==0.2.5
+bybit-v5
+
 
 
 
