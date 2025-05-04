@@ -1,7 +1,8 @@
 flask
 pybit
 requests
-bybit-sdk==1.0.17
+pybit==5.10.1
+
 
 
 
