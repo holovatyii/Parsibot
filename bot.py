@@ -76,7 +76,8 @@ def webhook():
 # Запуск Flask
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на порту 5000")
-    app.run(port=5000)
+    app.run(host="0.0.0.0", port=5000)
+
 
 
 
