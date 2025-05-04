@@ -40,6 +40,7 @@ def send_telegram_message(message):
 def webhook():
     try:
         data = request.json
+        print(f">> Debug: Received data: {data}")
 
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
@@ -71,10 +72,9 @@ def webhook():
 
         order = session.place_order(**order_params)
 
-        # Консоль без емодзі
-        print(f"Order placed: {side} {symbol} qty={qty} TP={tp} SL={sl}")
+        print(">> Debug: Order successfully placed")
 
-        # Повне повідомлення в Telegram
+        # Повідомлення в Telegram
         msg = (
             f"✅ Ордер відправлено!\n"
             f"Пара: {symbol}\n"
@@ -83,20 +83,25 @@ def webhook():
             f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
             f"\nВідповідь: {order}"
         )
+        print(">> Debug: About to send Telegram message")
         send_telegram_message(msg)
 
         return {"success": True, "order": order}
 
     except Exception as e:
-        error_msg = f"Error inside webhook: {str(e)}"
+        error_msg = f"🔥 Error inside webhook: {str(e)}"
         print(error_msg)
-        send_telegram_message(error_msg)
+        try:
+            send_telegram_message(error_msg)
+        except:
+            print("❌ Telegram send failed")
         return {"error": str(e)}, 500
 
 # Запуск Flask
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
