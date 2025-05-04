@@ -3,7 +3,7 @@ import json
 import os
 import requests
 from flask import Flask, request
-from bybit import UnifiedMargin
+from bybit.unified_margin import UnifiedMargin
 
 # === Завантаження з Environment ===
 api_key = os.environ["api_key"]
@@ -99,6 +99,4 @@ def webhook():
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
-
-
 
