@@ -27,7 +27,7 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# === Raw POST до Bybit з підписом у URL ===
+# === Raw POST до Bybit з підписом у заголовках ===
 def place_order_raw(symbol, side, qty, tp=None, sl=None):
     url = "https://api-testnet.bybit.com/v5/order/create"
     timestamp = str(int(time.time() * 1000))
@@ -51,14 +51,15 @@ def place_order_raw(symbol, side, qty, tp=None, sl=None):
     to_sign = f"api_key={api_key}&recv_window={recv_window}&timestamp={timestamp}&{body_str}"
     sign = hmac.new(bytes(api_secret, "utf-8"), to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    query_string = f"?apiKey={api_key}&timestamp={timestamp}&sign={sign}&recvWindow={recv_window}"
-    final_url = url + query_string
-
     headers = {
+        "X-BYBIT-API-KEY": api_key,
+        "X-BYBIT-SIGN": sign,
+        "X-BYBIT-TIMESTAMP": timestamp,
+        "X-BYBIT-RECV-WINDOW": recv_window,
         "Content-Type": "application/json"
     }
 
-    response = requests.post(final_url, headers=headers, data=body_str)
+    response = requests.post(url, headers=headers, data=body_str)
     print(f">> RAW POST: {response.status_code} | {response.text}")
     return response.json()
 
@@ -109,6 +110,5 @@ def webhook():
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
-
 
 
