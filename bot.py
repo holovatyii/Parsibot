@@ -25,7 +25,7 @@ session = HTTP(
     testnet=True
 )
 
-# Функція для надсилання повідомлення в Telegram (з правильним utf-8)
+# Функція для надсилання повідомлення в Telegram з utf-8
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
@@ -94,6 +94,7 @@ def webhook():
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на порту 5000")
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
