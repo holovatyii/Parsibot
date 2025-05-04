@@ -46,22 +46,31 @@ def webhook():
         side = data.get("side", "Buy")
         symbol = data.get("symbol", default_symbol)
         qty = data.get("qty", default_base_qty)
+        tp = data.get("tp")
+        sl = data.get("sl")
 
         try:
             qty = float(qty)  # Перетворюємо qty на float
         except (ValueError, TypeError):
             return {"error": "Invalid quantity"}, 400
 
-        order = session.place_order(
-            category="linear",
-            symbol=symbol,
-            side=side,
-            order_type="Market",
-            qty=str(qty),
-            time_in_force="GoodTillCancel"
-        )
+        order_params = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": side,
+            "order_type": "Market",
+            "qty": str(qty),
+            "time_in_force": "GoodTillCancel"
+        }
 
-        msg = f"✅ Ордер відправлено!\nПара: {symbol}\nСторона: {side}\nКількість: {qty}\n\nВідповідь: {order}"
+        if tp:
+            order_params["take_profit"] = str(tp)
+        if sl:
+            order_params["stop_loss"] = str(sl)
+
+        order = session.place_order(**order_params)
+
+        msg = f"✅ Ордер відправлено!\nПара: {symbol}\nСторона: {side}\nКількість: {qty}\nTP: {tp or 'немає'} | SL: {sl or 'немає'}\n\nВідповідь: {order}"
         print(msg)
         send_telegram_message(msg)
 
@@ -77,7 +86,5 @@ def webhook():
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на порту 5000")
     app.run(host="0.0.0.0", port=5000)
-
-
 
 
