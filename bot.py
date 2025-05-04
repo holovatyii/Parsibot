@@ -2,18 +2,16 @@ from flask import Flask, request
 from pybit.unified_trading import HTTP
 import json
 import requests
+import os
 
-# Завантаження конфігурації
-with open("config.json") as f:
-    config = json.load(f)
-
-api_key = config["api_key"]
-api_secret = config["api_secret"]
-default_symbol = config["symbol"]
-default_base_qty = config["base_qty"]
-webhook_password = config["webhook_password"]
-telegram_token = config["telegram_token"]
-telegram_chat_id = config["telegram_chat_id"]
+# 🔐 Зчитування з Environment Variables
+api_key = os.environ["api_key"]
+api_secret = os.environ["api_secret"]
+default_symbol = os.environ.get("symbol", "SOLUSDT")
+default_base_qty = float(os.environ.get("base_qty", 1))
+webhook_password = os.environ["webhook_password"]
+telegram_token = os.environ["telegram_token"]
+telegram_chat_id = os.environ["telegram_chat_id"]
 
 # Ініціалізація Flask
 app = Flask(__name__)
@@ -25,7 +23,7 @@ session = HTTP(
     testnet=True
 )
 
-# Надсилання повідомлення в Telegram (з підтримкою UTF-8)
+# Надсилання повідомлення в Telegram
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
@@ -72,9 +70,8 @@ def webhook():
 
         order = session.place_order(**order_params)
 
-        print(">> Debug: Order successfully placed")
+        print(">> Debug: Order placed.")
 
-        # Повідомлення в Telegram
         msg = (
             f"✅ Ордер відправлено!\n"
             f"Пара: {symbol}\n"
@@ -83,7 +80,7 @@ def webhook():
             f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
             f"\nВідповідь: {order}"
         )
-        print(">> Debug: About to send Telegram message")
+        print(">> Debug: Sending message to Telegram.")
         send_telegram_message(msg)
 
         return {"success": True, "order": order}
@@ -101,8 +98,5 @@ def webhook():
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
-
-
-
 
 
