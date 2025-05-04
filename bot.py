@@ -27,10 +27,19 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# === Raw POST до Bybit з підписом у заголовках ===
+# === Raw POST до Bybit з підписом у query string (без body) ===
 def place_order_raw(symbol, side, qty, tp=None, sl=None):
-    url = "https://api-testnet.bybit.com/v5/order/create"
+    base_url = "https://api-testnet.bybit.com"
+    endpoint = "/v5/order/create"
     timestamp = str(int(time.time() * 1000))
+    recv_window = "5000"
+
+    # Підписуємо лише ключові параметри
+    to_sign = f"api_key={api_key}&recv_window={recv_window}&timestamp={timestamp}"
+    sign = hmac.new(bytes(api_secret, "utf-8"), to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    query_string = f"?api_key={api_key}&timestamp={timestamp}&sign={sign}&recv_window={recv_window}"
+    final_url = base_url + endpoint + query_string
 
     body = {
         "category": "linear",
@@ -45,21 +54,11 @@ def place_order_raw(symbol, side, qty, tp=None, sl=None):
     if sl:
         body["stop_loss"] = str(sl)
 
-    body_str = json.dumps(body, separators=(',', ':'), ensure_ascii=False)
-
-    recv_window = "5000"
-    to_sign = f"api_key={api_key}&recv_window={recv_window}&timestamp={timestamp}&{body_str}"
-    sign = hmac.new(bytes(api_secret, "utf-8"), to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-
     headers = {
-        "X-BYBIT-API-KEY": api_key,
-        "X-BYBIT-SIGN": sign,
-        "X-BYBIT-TIMESTAMP": timestamp,
-        "X-BYBIT-RECV-WINDOW": recv_window,
         "Content-Type": "application/json"
     }
 
-    response = requests.post(url, headers=headers, data=body_str)
+    response = requests.post(final_url, headers=headers, data=json.dumps(body))
     print(f">> RAW POST: {response.status_code} | {response.text}")
     return response.json()
 
@@ -110,5 +109,4 @@ def webhook():
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
-
 
