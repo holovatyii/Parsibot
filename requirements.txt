@@ -1,6 +1,7 @@
 flask
 pybit
 requests
-bybit-unified
+bybit==0.2.5
+
 
 
