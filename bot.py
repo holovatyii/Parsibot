@@ -27,9 +27,10 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# === Raw POST до Bybit V5 з підписом у заголовках ===
+# === Raw POST до Bybit з повним підписом ===
 def place_order_raw(symbol, side, qty, tp=None, sl=None):
-    url = "https://api-testnet.bybit.com/v5/order/create"
+    base_url = "https://api-testnet.bybit.com"
+    endpoint = "/v5/order/create"
     timestamp = str(int(time.time() * 1000))
     recv_window = "5000"
 
@@ -48,15 +49,14 @@ def place_order_raw(symbol, side, qty, tp=None, sl=None):
 
     body_str = json.dumps(body, separators=(',', ':'), ensure_ascii=False)
 
-    # Формуємо рядок для підпису (без body)
-    to_sign = f"api_key={api_key}&recv_window={recv_window}&timestamp={timestamp}"
+    # Формуємо sign з body
+    to_sign = f"api_key={api_key}&recv_window={recv_window}&timestamp={timestamp}&{body_str}"
     sign = hmac.new(bytes(api_secret, "utf-8"), to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
+    query = f"?api_key={api_key}&timestamp={timestamp}&sign={sign}&recv_window={recv_window}"
+    url = base_url + endpoint + query
+
     headers = {
-        "X-BYBIT-API-KEY": api_key,
-        "X-BYBIT-SIGN": sign,
-        "X-BYBIT-TIMESTAMP": timestamp,
-        "X-BYBIT-RECV-WINDOW": recv_window,
         "Content-Type": "application/json"
     }
 
@@ -111,4 +111,5 @@ def webhook():
 if __name__ == '__main__':
     print("Flask server running on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
+
 
