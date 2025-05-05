@@ -61,6 +61,9 @@ def webhook():
 
         msg = f"✅ Ордер відкрито: {side} {symbol} x{qty}\n"
 
+        # === Pause before TP/SL ===
+        time.sleep(2)
+
         # === Take Profit ===
         if tp:
             client.place_order(
@@ -104,6 +107,7 @@ def webhook():
 # === Run locally for testing ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
 
