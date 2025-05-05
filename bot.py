@@ -45,7 +45,6 @@ def webhook():
     symbol = data.get("symbol", default_symbol)
     qty = data.get("qty", default_base_qty)
     side = data.get("side", "Buy").capitalize()
-
     tp = data.get("tp")
     sl = data.get("sl")
 
@@ -59,8 +58,37 @@ def webhook():
     }
 
     try:
+        # === Place Market Order ===
         response = client.place_order(**order_data)
-        print("✅ Success:", response)
+        print("✅ Market Order:", response)
+
+        opposite_side = "Sell" if side == "Buy" else "Buy"
+
+        # === Place Take Profit ===
+        if tp:
+            client.place_order(
+                category="linear",
+                symbol=symbol,
+                side=opposite_side,
+                order_type="TakeProfitMarket",
+                qty=qty,
+                trigger_price=float(tp),
+                time_in_force="GoodTillCancel",
+                reduce_only=True
+            )
+
+        # === Place Stop Loss ===
+        if sl:
+            client.place_order(
+                category="linear",
+                symbol=symbol,
+                side=opposite_side,
+                order_type="StopMarket",
+                qty=qty,
+                trigger_price=float(sl),
+                time_in_force="GoodTillCancel",
+                reduce_only=True
+            )
 
         msg = f"""✅ Ордер відправлено!
 Пара: {symbol}
