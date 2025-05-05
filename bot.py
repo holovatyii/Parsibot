@@ -49,48 +49,23 @@ def webhook():
     sl = data.get("sl")
 
     try:
-        # === Place Market Order ===
-        entry_response = client.place_order(
-            category="linear",
-            symbol=symbol,
-            side=side,
-            order_type="Market",
-            qty=qty,
-            time_in_force="GoodTillCancel"
-        )
-        print("✅ Market Order:", entry_response)
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": side,
+            "order_type": "Market",
+            "qty": qty,
+            "time_in_force": "GoodTillCancel",
+            "position_idx": 1
+        }
 
-        exit_side = "Sell" if side == "Buy" else "Buy"
-
-        # === Place Take Profit ===
         if tp:
-            tp_response = client.place_order(
-                category="linear",
-                symbol=symbol,
-                side=exit_side,
-                order_type="TakeProfitMarket",
-                qty=qty,
-                trigger_price=float(tp),
-                trigger_by="LastPrice",
-                time_in_force="GoodTillCancel",
-                position_idx=1
-            )
-            print("🎯 TP order:", tp_response)
-
-        # === Place Stop Loss ===
+            order_data["take_profit"] = float(tp)
         if sl:
-            sl_response = client.place_order(
-                category="linear",
-                symbol=symbol,
-                side=exit_side,
-                order_type="StopMarket",
-                qty=qty,
-                trigger_price=float(sl),
-                trigger_by="LastPrice",
-                time_in_force="GoodTillCancel",
-                position_idx=1
-            )
-            print("🛑 SL order:", sl_response)
+            order_data["stop_loss"] = float(sl)
+
+        response = client.place_order(**order_data)
+        print("✅ Market Order with TP/SL:", response)
 
         msg = f"""✅ Ордер відправлено!
 Пара: {symbol}
@@ -98,9 +73,9 @@ def webhook():
 Кількість: {qty}
 TP: {tp if tp else 'немає'} | SL: {sl if sl else 'немає'}
 
-Відповідь: {entry_response}"""
+Відповідь: {response}"""
         send_telegram_message(msg)
-        return {"code": 200, "message": "Order + TP/SL sent"}
+        return {"code": 200, "message": "Order sent with TP/SL"}
 
     except Exception as e:
         error_msg = f"🔥 Error: {e}"
