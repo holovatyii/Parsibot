@@ -48,47 +48,49 @@ def webhook():
     tp = data.get("tp")
     sl = data.get("sl")
 
-    order_data = {
-        "category": "linear",
-        "symbol": symbol,
-        "side": side,
-        "order_type": "Market",
-        "qty": qty,
-        "time_in_force": "GoodTillCancel"
-    }
-
     try:
         # === Place Market Order ===
-        response = client.place_order(**order_data)
-        print("✅ Market Order:", response)
+        entry_response = client.place_order(
+            category="linear",
+            symbol=symbol,
+            side=side,
+            order_type="Market",
+            qty=qty,
+            time_in_force="GoodTillCancel"
+        )
+        print("✅ Market Order:", entry_response)
 
-        opposite_side = "Sell" if side == "Buy" else "Buy"
+        exit_side = "Sell" if side == "Buy" else "Buy"
 
         # === Place Take Profit ===
         if tp:
-            client.place_order(
+            tp_response = client.place_order(
                 category="linear",
                 symbol=symbol,
-                side=opposite_side,
+                side=exit_side,
                 order_type="TakeProfitMarket",
                 qty=qty,
                 trigger_price=float(tp),
+                trigger_by="LastPrice",
                 time_in_force="GoodTillCancel",
-                reduce_only=True
+                position_idx=1
             )
+            print("🎯 TP order:", tp_response)
 
         # === Place Stop Loss ===
         if sl:
-            client.place_order(
+            sl_response = client.place_order(
                 category="linear",
                 symbol=symbol,
-                side=opposite_side,
+                side=exit_side,
                 order_type="StopMarket",
                 qty=qty,
                 trigger_price=float(sl),
+                trigger_by="LastPrice",
                 time_in_force="GoodTillCancel",
-                reduce_only=True
+                position_idx=1
             )
+            print("🛑 SL order:", sl_response)
 
         msg = f"""✅ Ордер відправлено!
 Пара: {symbol}
@@ -96,9 +98,9 @@ def webhook():
 Кількість: {qty}
 TP: {tp if tp else 'немає'} | SL: {sl if sl else 'немає'}
 
-Відповідь: {response}"""
+Відповідь: {entry_response}"""
         send_telegram_message(msg)
-        return {"code": 200, "message": "Order executed"}
+        return {"code": 200, "message": "Order + TP/SL sent"}
 
     except Exception as e:
         error_msg = f"🔥 Error: {e}"
