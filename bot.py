@@ -49,14 +49,7 @@ def webhook():
     sl = data.get("sl")
 
     try:
-        # === Установити режим Full TP/SL ===
-        client.set_trading_stop_mode(
-            category="linear",
-            symbol=symbol,
-            tp_sl_mode="Full"
-        )
-
-        # === Сформувати ордер ===
+        # === Формування ордера ===
         order_data = {
             "category": "linear",
             "symbol": symbol,
