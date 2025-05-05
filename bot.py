@@ -32,6 +32,22 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"❌ Telegram error: {e}")
 
+# === Wait for position to appear ===
+def wait_for_position(symbol, side, retries=10, delay=1):
+    opposite_side = "Sell" if side == "Buy" else "Buy"
+    for _ in range(retries):
+        time.sleep(delay)
+        try:
+            positions = client.get_positions(category="linear", symbol=symbol)["result"]["list"]
+            for pos in positions:
+                size = float(pos["size"])
+                pos_side = pos["side"]
+                if size > 0 and pos_side == side:
+                    return True
+        except Exception as e:
+            print(f"Error while checking position: {e}")
+    return False
+
 # === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -61,8 +77,12 @@ def webhook():
 
         msg = f"✅ Ордер відкрито: {side} {symbol} x{qty}\n"
 
-        # === Pause before TP/SL ===
-        time.sleep(2)
+        # === Wait until position appears ===
+        if not wait_for_position(symbol, side):
+            msg += "⚠️ Позиція не з'явилась — TP/SL не створено"
+            print(msg)
+            send_telegram_message(msg)
+            return {"code": 200, "message": "Order placed, but position not detected"}
 
         # === Take Profit ===
         if tp:
