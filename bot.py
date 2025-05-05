@@ -43,40 +43,60 @@ def webhook():
         return {"code": 403, "message": "Unauthorized"}, 403
 
     symbol = data.get("symbol", default_symbol)
-    qty = data.get("qty", default_base_qty)
+    qty = float(data.get("qty", default_base_qty))
     side = data.get("side", "Buy").capitalize()
     tp = data.get("tp")
     sl = data.get("sl")
 
     try:
-        # === Формування ордера ===
-        order_data = {
-            "category": "linear",
-            "symbol": symbol,
-            "side": side,
-            "order_type": "Market",
-            "qty": qty,
-            "time_in_force": "GoodTillCancel",
-            "position_idx": 1
-        }
+        # === Відкриваємо Market позицію ===
+        market_order = client.place_order(
+            category="linear",
+            symbol=symbol,
+            side=side,
+            order_type="Market",
+            qty=qty,
+            time_in_force="GoodTillCancel",
+            position_idx=1
+        )
 
+        msg = f"✅ Ордер відкрито: {side} {symbol} x{qty}\n"
+
+        # === Take Profit як окремий ордер ===
         if tp:
-            order_data["take_profit"] = float(tp)
+            client.place_order(
+                category="linear",
+                symbol=symbol,
+                side="Sell" if side == "Buy" else "Buy",
+                order_type="TakeProfitMarket",
+                qty=qty,
+                trigger_price=float(tp),
+                trigger_by="LastPrice",
+                reduce_only=True,
+                position_idx=1
+            )
+            msg += f"🎯 TP: {tp}\n"
+
+        # === Stop Loss як окремий ордер ===
         if sl:
-            order_data["stop_loss"] = float(sl)
+            client.place_order(
+                category="linear",
+                symbol=symbol,
+                side="Sell" if side == "Buy" else "Buy",
+                order_type="StopLossMarket",
+                qty=qty,
+                trigger_price=float(sl),
+                trigger_by="LastPrice",
+                reduce_only=True,
+                position_idx=1
+            )
+            msg += f"🛑 SL: {sl}\n"
 
-        response = client.place_order(**order_data)
-        print("✅ Market Order with TP/SL:", response)
-
-        msg = f"""✅ Ордер відправлено!
-Пара: {symbol}
-Сторона: {side}
-Кількість: {qty}
-TP: {tp if tp else 'немає'} | SL: {sl if sl else 'немає'}
-
-Відповідь: {response}"""
+        msg += f"📬 Відповідь: {market_order}"
+        print(msg)
         send_telegram_message(msg)
-        return {"code": 200, "message": "Order sent with TP/SL"}
+
+        return {"code": 200, "message": "Order and TP/SL placed"}
 
     except Exception as e:
         error_msg = f"🔥 Error: {e}"
@@ -87,5 +107,6 @@ TP: {tp if tp else 'немає'} | SL: {sl if sl else 'немає'}
 # === Run locally for testing ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
