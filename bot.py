@@ -49,20 +49,19 @@ def webhook():
     sl = data.get("sl")
 
     try:
-        # === Відкриваємо Market позицію ===
+        # === Market Entry ===
         market_order = client.place_order(
             category="linear",
             symbol=symbol,
             side=side,
             order_type="Market",
             qty=qty,
-            time_in_force="GoodTillCancel",
-            position_idx=1
+            time_in_force="GoodTillCancel"
         )
 
         msg = f"✅ Ордер відкрито: {side} {symbol} x{qty}\n"
 
-        # === Take Profit як окремий ордер ===
+        # === Take Profit ===
         if tp:
             client.place_order(
                 category="linear",
@@ -72,12 +71,11 @@ def webhook():
                 qty=qty,
                 trigger_price=float(tp),
                 trigger_by="LastPrice",
-                reduce_only=True,
-                position_idx=1
+                reduce_only=True
             )
             msg += f"🎯 TP: {tp}\n"
 
-        # === Stop Loss як окремий ордер ===
+        # === Stop Loss ===
         if sl:
             client.place_order(
                 category="linear",
@@ -87,8 +85,7 @@ def webhook():
                 qty=qty,
                 trigger_price=float(sl),
                 trigger_by="LastPrice",
-                reduce_only=True,
-                position_idx=1
+                reduce_only=True
             )
             msg += f"🛑 SL: {sl}\n"
 
@@ -107,6 +104,7 @@ def webhook():
 # === Run locally for testing ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
 
