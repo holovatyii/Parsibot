@@ -80,6 +80,6 @@ TP: {tp if tp else 'немає'} | SL: {sl if sl else 'немає'}
 
 # === Run locally for testing ===
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=10000)
 
 
