@@ -21,6 +21,7 @@ client = HTTP(api_key=api_key, api_secret=api_secret, testnet=True)
 def get_price(symbol):
     try:
         price_data = client.market.get_ticker(category="linear", symbol=symbol)
+        print("DEBUG price_data:", price_data)  # <== додай це
         return float(price_data['result']['list'][0]['lastPrice'])
     except Exception as e:
         print(f"❌ Помилка отримання ціни: {e}")
