@@ -21,19 +21,20 @@ client = HTTP(api_key=api_key, api_secret=api_secret, testnet=True)
 # === Отримати ринкову ціну з Bybit ===
 def get_price(symbol):
     try:
-        print(f"🔵 Викликаємо get_price() для: {symbol}")
-        price_data = client.market.get_ticker(category="linear", symbol=symbol)
-        print("📦 Відповідь від Bybit (type):", type(price_data))
-        print("📦 Відповідь від Bybit (raw):", price_data)
+        url = f"https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
+        response = requests.get(url)
+        data = response.json()
+        send_telegram_message(f"📊 API response: {data}")
 
-        # Надсилаємо в Telegram для дистанційного моніторингу
-        send_telegram_message(f"📊 get_price() -> symbol: {symbol}\n📦 price_data: {price_data}")
-
-        if "result" in price_data and "list" in price_data["result"]:
-            last_price = price_data["result"]["list"][0].get("lastPrice")
+        if "result" in data and "list" in data["result"]:
+            last_price = data["result"]["list"][0].get("lastPrice")
             return float(last_price) if last_price else None
 
         return None
+    except Exception as e:
+        send_telegram_message(f"❌ Помилка get_price() через API: {e}")
+        return None
+
     except Exception as e:
         print(f"❌ Помилка отримання ціни: {e}")
         send_telegram_message(f"❌ Помилка get_price(): {e}")
