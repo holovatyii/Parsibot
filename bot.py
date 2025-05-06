@@ -1,11 +1,10 @@
 import os
 import json
-import time
 import requests
 from flask import Flask, request
 from pybit.unified_trading import HTTP
 
-# === Config from environment ===
+# === Змінні з оточення ===
 api_key = os.environ["api_key"]
 api_secret = os.environ["api_secret"]
 default_symbol = os.environ.get("symbol", "BTCUSDT")
@@ -14,119 +13,102 @@ webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
 
-# === Flask app ===
+# === Ініціалізація Flask та Bybit session ===
 app = Flask(__name__)
-
-# === Bybit session ===
 client = HTTP(api_key=api_key, api_secret=api_secret, testnet=True)
 
-# === Telegram sender ===
+# === Отримати ринкову ціну ===
+def get_price(symbol):
+    try:
+        price_data = client.market.get_ticker(category="linear", symbol=symbol)
+        return float(price_data['result']['list'][0]['lastPrice'])
+    except Exception as e:
+        print(f"❌ Помилка отримання ціни: {e}")
+        return None
+
+# === Telegram логування ===
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-    payload = {
-        "chat_id": telegram_chat_id,
-        "text": message
-    }
+    data = {"chat_id": telegram_chat_id, "text": message}
+    headers = {"Content-Type": "application/json"}
     try:
-        requests.post(url, json=payload)
+        requests.post(url, data=json.dumps(data), headers=headers)
     except Exception as e:
-        print(f"❌ Telegram error: {e}")
+        print(f"Telegram Error: {e}")
 
-# === Wait for position to appear ===
-def wait_for_position(symbol, side, retries=10, delay=1):
-    opposite_side = "Sell" if side == "Buy" else "Buy"
-    for _ in range(retries):
-        time.sleep(delay)
-        try:
-            positions = client.get_positions(category="linear", symbol=symbol)["result"]["list"]
-            for pos in positions:
-                size = float(pos["size"])
-                pos_side = pos["side"]
-                if size > 0 and pos_side == side:
-                    return True
-        except Exception as e:
-            print(f"Error while checking position: {e}")
-    return False
-
-# === Webhook endpoint ===
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.json
-    if not data:
-        return {"code": 400, "message": "No JSON payload received"}, 400
-
-    if data.get("password") != webhook_password:
-        return {"code": 403, "message": "Unauthorized"}, 403
-
-    symbol = data.get("symbol", default_symbol)
-    qty = float(data.get("qty", default_base_qty))
-    side = data.get("side", "Buy").capitalize()
-    tp = data.get("tp")
-    sl = data.get("sl")
-
+# === Відправка ордера ===
+def place_order(symbol, side, qty, tp=None, sl=None):
     try:
-        # === Market Entry ===
-        market_order = client.place_order(
-            category="linear",
-            symbol=symbol,
-            side=side,
-            order_type="Market",
-            qty=qty,
-            time_in_force="GoodTillCancel"
+        current_price = get_price(symbol)
+        if current_price is None:
+            return {"retCode": -1, "retMsg": "Failed to fetch current price"}
+
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": side,
+            "orderType": "Market",
+            "qty": str(qty),
+            "timeInForce": "GoodTillCancel"
+        }
+
+        if side == "Buy":
+            if tp and float(tp) > current_price:
+                order_data["takeProfit"] = str(tp)
+            if sl and float(sl) < current_price:
+                order_data["stopLoss"] = str(sl)
+        elif side == "Sell":
+            if tp and float(tp) < current_price:
+                order_data["takeProfit"] = str(tp)
+            if sl and float(sl) > current_price:
+                order_data["stopLoss"] = str(sl)
+
+        response = client.order.create(order_data)
+        print(f">> SDK RESPONSE: {response}")
+        return response
+    except Exception as e:
+        print(f">> SDK ERROR: {e}")
+        return {"retCode": -1, "retMsg": str(e)}
+
+# === Webhook ===
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    try:
+        data = request.json
+        print(f">> Received webhook: {data}")
+
+        if not data or data.get("password") != webhook_password:
+            return {"error": "Unauthorized"}, 401
+
+        side = data.get("side", "Buy")
+        symbol = data.get("symbol", default_symbol)
+        qty = float(data.get("qty", default_base_qty))
+        tp = data.get("tp")
+        sl = data.get("sl")
+
+        order = place_order(symbol, side, qty, tp, sl)
+
+        msg = (
+            f"✅ Ордер відправлено!\n"
+            f"Пара: {symbol}\n"
+            f"Сторона: {side}\n"
+            f"Кількість: {qty}\n"
+            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
+            f"\nВідповідь: {order}"
         )
-
-        msg = f"✅ Ордер відкрито: {side} {symbol} x{qty}\n"
-
-        # === Wait until position appears ===
-        if not wait_for_position(symbol, side):
-            msg += "⚠️ Позиція не з'явилась — TP/SL не створено"
-            print(msg)
-            send_telegram_message(msg)
-            return {"code": 200, "message": "Order placed, but position not detected"}
-
-        # === Take Profit ===
-        if tp:
-            client.place_order(
-                category="linear",
-                symbol=symbol,
-                side="Sell" if side == "Buy" else "Buy",
-                order_type="TakeProfitMarket",
-                qty=qty,
-                trigger_price=float(tp),
-                trigger_by="LastPrice",
-                reduce_only=True
-            )
-            msg += f"🎯 TP: {tp}\n"
-
-        # === Stop Loss ===
-        if sl:
-            client.place_order(
-                category="linear",
-                symbol=symbol,
-                side="Sell" if side == "Buy" else "Buy",
-                order_type="StopLossMarket",
-                qty=qty,
-                trigger_price=float(sl),
-                trigger_by="LastPrice",
-                reduce_only=True
-            )
-            msg += f"🛑 SL: {sl}\n"
-
-        msg += f"📬 Відповідь: {market_order}"
-        print(msg)
         send_telegram_message(msg)
 
-        return {"code": 200, "message": "Order and TP/SL placed"}
-
+        return {"success": True, "order": order}
     except Exception as e:
-        error_msg = f"🔥 Error: {e}"
+        error_msg = f"🔥 Error: {str(e)}"
         print(error_msg)
         send_telegram_message(error_msg)
-        return {"code": 500, "message": str(e)}, 500
+        return {"error": str(e)}, 500
 
-# === Run locally for testing ===
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+# === Запуск ===
+if __name__ == '__main__':
+    print("🚀 Flask-сервер запущено на 0.0.0.0:5000")
+    app.run(host="0.0.0.0", port=5000)
 
 
 
