@@ -20,8 +20,9 @@ client = HTTP(api_key=api_key, api_secret=api_secret, testnet=True)
 # === Отримати ринкову ціну ===
 def get_price(symbol):
     try:
+        print("▶️ Викликаємо get_price() для:", symbol)
         price_data = client.market.get_ticker(category="linear", symbol=symbol)
-        print("DEBUG price_data:", price_data)  # Додано
+        print("📦 Відповідь від Bybit:", price_data)
         if "result" in price_data and "list" in price_data["result"]:
             last_price = price_data["result"]["list"][0].get("lastPrice")
             return float(last_price) if last_price else None
@@ -29,6 +30,7 @@ def get_price(symbol):
     except Exception as e:
         print(f"❌ Помилка отримання ціни: {e}")
         return None
+
 
 
 # === Telegram логування ===
