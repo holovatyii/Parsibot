@@ -1,8 +1,10 @@
 import os
+import time
+import hmac
 import json
+import hashlib
 import requests
 from flask import Flask, request
-from pybit.unified_trading import HTTP
 
 # === Змінні з оточення ===
 api_key = os.environ["api_key"]
@@ -13,49 +15,52 @@ webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
 
-# === Ініціалізація Flask та Bybit session ===
+# === Flask
 app = Flask(__name__)
-client = HTTP(api_key=api_key, api_secret=api_secret, testnet=True)
-
-# === Отримати ринкову ціну ===
-# === Отримати ринкову ціну з Bybit ===
-def get_price(symbol):
-    try:
-        url = f"https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
-        response = requests.get(url)
-        data = response.json()
-        send_telegram_message(f"📊 API response: {data}")
-
-        if "result" in data and "list" in data["result"]:
-            last_price = data["result"]["list"][0].get("lastPrice")
-            return float(last_price) if last_price else None
-
-        return None
-    except Exception as e:
-        send_telegram_message(f"❌ Помилка get_price() через API: {e}")
-        return None
-
-    except Exception as e:
-        print(f"❌ Помилка отримання ціни: {e}")
-        send_telegram_message(f"❌ Помилка get_price(): {e}")
-        return None
 
 # === Telegram логування ===
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
-    headers = {"Content-Type": "application/json"}
     try:
-        requests.post(url, data=json.dumps(data), headers=headers)
+        requests.post(url, json=data)
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# === Відправка ордера ===
+# === Підпис запиту ===
+def sign_request(api_key, api_secret, body, timestamp):
+    param_str = f"{timestamp}{api_key}5000{body}"
+    signature = hmac.new(
+        bytes(api_secret, "utf-8"),
+        msg=bytes(param_str, "utf-8"),
+        digestmod=hashlib.sha256
+    ).hexdigest()
+    return signature
+
+# === Отримати ціну
+def get_price(symbol):
+    try:
+        url = f"https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
+        response = requests.get(url)
+        data = response.json()
+        print("📊 API response:", data)
+        if "result" in data and "list" in data["result"]:
+            last_price = data["result"]["list"][0].get("lastPrice")
+            return float(last_price) if last_price else None
+        return None
+    except Exception as e:
+        print(f"❌ get_price() error: {e}")
+        return None
+
+# === Відправити ордер
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
-        current_price = get_price(symbol)
-        if current_price is None:
-            return {"retCode": -1, "retMsg": "Failed to fetch current price"}
+        price = get_price(symbol)
+        print("📈 Поточна ціна:", price)
+
+        url = "https://api-testnet.bybit.com/v5/order/create"
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
 
         order_data = {
             "category": "linear",
@@ -66,30 +71,43 @@ def place_order(symbol, side, qty, tp=None, sl=None):
             "timeInForce": "GoodTillCancel"
         }
 
-        if side == "Buy":
-            if tp and float(tp) > current_price:
-                order_data["takeProfit"] = str(tp)
-            if sl and float(sl) < current_price:
-                order_data["stopLoss"] = str(sl)
-        elif side == "Sell":
-            if tp and float(tp) < current_price:
-                order_data["takeProfit"] = str(tp)
-            if sl and float(sl) > current_price:
-                order_data["stopLoss"] = str(sl)
+        if price:
+            if side == "Buy":
+                if tp and float(tp) > price:
+                    order_data["takeProfit"] = str(tp)
+                if sl and float(sl) < price:
+                    order_data["stopLoss"] = str(sl)
+            elif side == "Sell":
+                if tp and float(tp) < price:
+                    order_data["takeProfit"] = str(tp)
+                if sl and float(sl) > price:
+                    order_data["stopLoss"] = str(sl)
 
-        response = client.order.create(order_data)
-        print(f">> SDK RESPONSE: {response}")
-        return response
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url, data=body, headers=headers)
+        print("📤 Відповідь Bybit:", response.text)
+        return response.json()
+
     except Exception as e:
-        print(f">> SDK ERROR: {e}")
+        print(f"❌ place_order error: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
-# === Webhook ===
+# === Webhook
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
         data = request.json
-        print(f">> Received webhook: {data}")
+        print("📩 Webhook отримано:", data)
 
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
@@ -111,15 +129,15 @@ def webhook():
             f"\nВідповідь: {order}"
         )
         send_telegram_message(msg)
-
         return {"success": True, "order": order}
+
     except Exception as e:
-        error_msg = f"🔥 Error: {str(e)}"
+        error_msg = f"🔥 Error: {e}"
         print(error_msg)
         send_telegram_message(error_msg)
         return {"error": str(e)}, 500
 
-# === Запуск ===
+# === Запуск
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
