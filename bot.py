@@ -15,7 +15,6 @@ webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
 
-# === Flask
 app = Flask(__name__)
 
 # === Telegram логування ===
@@ -30,14 +29,13 @@ def send_telegram_message(message):
 # === Підпис запиту ===
 def sign_request(api_key, api_secret, body, timestamp):
     param_str = f"{timestamp}{api_key}5000{body}"
-    signature = hmac.new(
+    return hmac.new(
         bytes(api_secret, "utf-8"),
         msg=bytes(param_str, "utf-8"),
         digestmod=hashlib.sha256
     ).hexdigest()
-    return signature
 
-# === Отримати ціну
+# === Отримати ринкову ціну
 def get_price(symbol):
     try:
         url = f"https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
@@ -52,7 +50,44 @@ def get_price(symbol):
         print(f"❌ get_price() error: {e}")
         return None
 
-# === Відправити ордер
+# === Створити окремий TP-ордер
+def create_take_profit_order(symbol, side, qty, tp):
+    try:
+        tp_side = "Sell" if side == "Buy" else "Buy"
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": tp_side,
+            "orderType": "Limit",
+            "qty": str(qty),
+            "price": str(tp),
+            "timeInForce": "GoodTillCancel",
+            "reduceOnly": True
+        }
+
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+
+        url = "https://api-testnet.bybit.com/v5/order/create"
+        response = requests.post(url, data=body, headers=headers)
+        print("📤 Окремий TP-ордер:", response.text)
+        return response.json()
+    except Exception as e:
+        print(f"❌ Помилка при створенні TP ордера: {e}")
+        return None
+
+# === Відправити основний ордер
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
         price = get_price(symbol)
@@ -102,7 +137,7 @@ def place_order(symbol, side, qty, tp=None, sl=None):
         print(f"❌ place_order error: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
-# === Webhook
+# === Webhook ===
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -112,7 +147,6 @@ def webhook():
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
 
-        # Парсинг значень з перевіркою
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
         qty = data.get("qty", default_base_qty)
@@ -122,13 +156,17 @@ def webhook():
         if not side or not symbol or not qty:
             raise ValueError("❌ Відсутні ключові параметри (side, symbol або qty)")
 
-        # Конвертуємо qty в float без помилки
         try:
             qty = float(qty)
         except Exception:
             raise ValueError(f"❌ Неможливо перетворити qty: {qty}")
 
         order = place_order(symbol, side, qty, tp, sl)
+
+        # Якщо TP не був прийнятий — створити окремий TP-ордер
+        if tp and ("takeProfit" not in json.dumps(order)):
+            send_telegram_message(f"⚠️ TP не встановлено, створюємо окремий TP-ордер @ {tp}")
+            create_take_profit_order(symbol, side, qty, tp)
 
         msg = (
             f"✅ Ордер відправлено!\n"
@@ -151,8 +189,5 @@ def webhook():
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
-
-
-
 
 
