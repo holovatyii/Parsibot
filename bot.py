@@ -106,17 +106,27 @@ def place_order(symbol, side, qty, tp=None, sl=None):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        data = request.json
+        data = request.get_json(force=True)
         print("📩 Webhook отримано:", data)
 
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
 
-        side = data.get("side", "Buy")
+        # Парсинг значень з перевіркою
+        side = data.get("side")
         symbol = data.get("symbol", default_symbol)
-        qty = float(data.get("qty", default_base_qty))
+        qty = data.get("qty", default_base_qty)
         tp = data.get("tp")
         sl = data.get("sl")
+
+        if not side or not symbol or not qty:
+            raise ValueError("❌ Відсутні ключові параметри (side, symbol або qty)")
+
+        # Конвертуємо qty в float без помилки
+        try:
+            qty = float(qty)
+        except Exception:
+            raise ValueError(f"❌ Неможливо перетворити qty: {qty}")
 
         order = place_order(symbol, side, qty, tp, sl)
 
@@ -126,13 +136,13 @@ def webhook():
             f"Сторона: {side}\n"
             f"Кількість: {qty}\n"
             f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
-            f"\nВідповідь: {order}"
+            f"\nВідповідь: {json.dumps(order, indent=2)}"
         )
         send_telegram_message(msg)
         return {"success": True, "order": order}
 
     except Exception as e:
-        error_msg = f"🔥 Error: {e}"
+        error_msg = f"🔥 Error in webhook(): {e}"
         print(error_msg)
         send_telegram_message(error_msg)
         return {"error": str(e)}, 500
