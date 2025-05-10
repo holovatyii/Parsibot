@@ -38,7 +38,7 @@ def sign_request(api_key, api_secret, body, timestamp):
 # === Отримати ринкову ціну
 def get_price(symbol):
     try:
-        url = f"https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
+        url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
         response = requests.get(url)
         data = response.json()
         if "result" in data and "list" in data["result"]:
@@ -47,28 +47,6 @@ def get_price(symbol):
         return None
     except Exception as e:
         print(f"❌ get_price() error: {e}")
-        return None
-
-# === Отримати інформацію про останню угоду
-def get_last_trade_result(symbol, side, qty, order_time):
-    try:
-        url = f"https://api-testnet.bybit.com/v5/execution/list?category=linear&symbol={symbol}"
-        response = requests.get(url)
-        data = response.json()
-        executions = data.get("result", {}).get("list", [])
-        for trade in executions:
-            trade_time = int(trade.get("execTime", 0))
-            trade_side = trade.get("side")
-            trade_qty = float(trade.get("execQty", 0))
-            if abs(trade_qty - qty) < 0.0001 and trade_side == side and trade_time >= order_time:
-                return {
-                    "price": trade.get("execPrice"),
-                    "pnl": trade.get("closedPnl"),
-                    "result": "Win" if float(trade.get("closedPnl", 0)) >= 0 else "Loss"
-                }
-        return None
-    except Exception as e:
-        print(f"❌ get_last_trade_result() error: {e}")
         return None
 
 # === Створити окремий TP-ордер
@@ -96,9 +74,8 @@ def create_take_profit_order(symbol, side, qty, tp):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-        url = "https://api-testnet.bybit.com/v5/order/create"
+        url = "https://api.bybit.com/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
-        print("📤 Окремий TP-ордер:", response.text)
         return response.json()
     except Exception as e:
         print(f"❌ TP fallback error: {e}")
@@ -129,32 +106,51 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-        url = "https://api-testnet.bybit.com/v5/order/create"
+        url = "https://api.bybit.com/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
-        print("📤 Окремий SL-ордер:", response.text)
         return response.json()
     except Exception as e:
         print(f"❌ SL fallback error: {e}")
         return None
 
-# === Відправити основний ордер
+# === Перевірити TP/SL
+def check_position_tp_sl(symbol):
+    try:
+        url = "https://api.bybit.com/v5/position/list"
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        query = {"category": "linear", "symbol": symbol}
+        query_str = json.dumps(query, separators=(",", ":"))
+        sign = sign_request(api_key, api_secret, query_str, timestamp)
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+        response = requests.get(url, params=query, headers=headers)
+        data = response.json()
+        if "result" in data and "list" in data["result"]:
+            position = data["result"]["list"][0]
+            take_profit = position.get("takeProfit")
+            stop_loss = position.get("stopLoss")
+            if not take_profit or not stop_loss:
+                send_telegram_message("🚨 TP/SL не встановлено. Пробую fallback...")
+                return False
+            return True
+        return False
+    except Exception as e:
+        send_telegram_message(f"❌ TP/SL check error: {e}")
+        return False
+
+# === Відправити ордер
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
         price = get_price(symbol)
-        print("📈 Поточна ціна:", price)
-
-        url = "https://api-testnet.bybit.com/v5/order/create"
+        url = "https://api.bybit.com/v5/order/create"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
-
-        # Перевірка адекватності TP/SL
-        max_tp_range = 0.10
-        max_sl_range = 0.05
-        if tp and abs(float(tp) - price) > price * max_tp_range:
-            raise ValueError("⚠️ TP занадто далекий від ринку")
-        if sl and abs(float(sl) - price) > price * max_sl_range:
-            raise ValueError("⚠️ SL занадто далекий від ринку")
-
         order_data = {
             "category": "linear",
             "symbol": symbol,
@@ -163,7 +159,6 @@ def place_order(symbol, side, qty, tp=None, sl=None):
             "qty": str(qty),
             "timeInForce": "GoodTillCancel"
         }
-
         if price:
             if side == "Buy":
                 if tp and float(tp) > price:
@@ -175,7 +170,6 @@ def place_order(symbol, side, qty, tp=None, sl=None):
                     order_data["takeProfit"] = str(tp)
                 if sl and float(sl) > price:
                     order_data["stopLoss"] = str(sl)
-
         body = json.dumps(order_data)
         sign = sign_request(api_key, api_secret, body, timestamp)
         headers = {
@@ -186,70 +180,35 @@ def place_order(symbol, side, qty, tp=None, sl=None):
             "Content-Type": "application/json"
         }
         response = requests.post(url, data=body, headers=headers)
-        print("📤 Відповідь Bybit:", response.text)
         return response.json()
     except Exception as e:
         print(f"❌ place_order error: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
-# === Webhook ===
-@app.route('/webhook', methods=['POST'])
+# === Webhook
+@app.route("/webhook", methods=["POST"])
 def webhook():
     try:
         data = request.get_json(force=True)
-        print("📩 Webhook отримано:", data)
-
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
-
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
         qty = float(data.get("qty", default_base_qty))
         tp = data.get("tp")
         sl = data.get("sl")
-
         order = place_order(symbol, side, qty, tp, sl)
-
-        if tp and ("takeProfit" not in json.dumps(order)):
-            send_telegram_message(f"⚠️ TP не встановлено, створюємо окремий TP-ордер @ {tp}")
+        time.sleep(8)
+        if not check_position_tp_sl(symbol):
             create_take_profit_order(symbol, side, qty, tp)
-
-        if sl and ("stopLoss" not in json.dumps(order)):
-            send_telegram_message(f"⚠️ SL не встановлено, створюємо окремий SL-ордер @ {sl}")
             create_stop_loss_order(symbol, side, qty, sl)
-
-        msg = (
-            f"✅ Ордер відправлено!\n"
-            f"Пара: {symbol}\n"
-            f"Сторона: {side}\n"
-            f"Кількість: {qty}\n"
-            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
-            f"\nВідповідь: {json.dumps(order, indent=2)}"
-        )
-        send_telegram_message(msg)
-
-        # 🔁 Затримка + результат
-        time.sleep(10)
-        order_time = int(order.get("time", time.time() * 1000))
-        trade_result = get_last_trade_result(symbol, side, qty, order_time)
-        if trade_result:
-            send_telegram_message(
-                f"📉 Угода завершена!\n"
-                f"Пара: {symbol}\n"
-                f"Результат: {'✅' if trade_result['result'] == 'Win' else '❌'} {trade_result['result']}\n"
-                f"P&L: {trade_result['pnl']} USDT\n"
-                f"Ціна виходу: {trade_result['price']}"
-            )
-
+        send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
         return {"success": True, "order": order}
-
     except Exception as e:
-        error_msg = f"🔥 Error in webhook(): {e}"
-        print(error_msg)
+        error_msg = f"🔥 Webhook error: {e}"
         send_telegram_message(error_msg)
         return {"error": str(e)}, 500
 
-# === Запуск
-if __name__ == '__main__':
-    print("🚀 Flask-сервер запущено на 0.0.0.0:5000")
+# === Запуск Flask
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
