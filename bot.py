@@ -87,6 +87,43 @@ def create_take_profit_order(symbol, side, qty, tp):
         print(f"❌ Помилка при створенні TP ордера: {e}")
         return None
 
+# === Створити окремий SL-ордер
+def create_stop_loss_order(symbol, side, qty, sl):
+    try:
+        sl_side = "Sell" if side == "Buy" else "Buy"
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": sl_side,
+            "orderType": "Market",
+            "qty": str(qty),
+            "stopLoss": str(sl),
+            "timeInForce": "GoodTillCancel",
+            "reduceOnly": True
+        }
+
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+
+        url = "https://api-testnet.bybit.com/v5/order/create"
+        response = requests.post(url, data=body, headers=headers)
+        print("📤 Окремий SL-ордер:", response.text)
+        return response.json()
+    except Exception as e:
+        print(f"❌ Помилка при створенні SL ордера: {e}")
+        return None
+
 # === Відправити основний ордер
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
@@ -96,6 +133,16 @@ def place_order(symbol, side, qty, tp=None, sl=None):
         url = "https://api-testnet.bybit.com/v5/order/create"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
+
+        # Перевірка адекватності TP/SL
+        max_tp_range = 0.10  # 10%
+        max_sl_range = 0.05  # 5%
+
+        if tp and abs(float(tp) - price) > price * max_tp_range:
+            raise ValueError(f"⚠️ TP занадто далекий від ринку")
+
+        if sl and abs(float(sl) - price) > price * max_sl_range:
+            raise ValueError(f"⚠️ SL занадто далекий від ринку")
 
         order_data = {
             "category": "linear",
@@ -137,6 +184,31 @@ def place_order(symbol, side, qty, tp=None, sl=None):
         print(f"❌ place_order error: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
+
+# === Отримати інформацію про останню угоду
+def get_last_trade_result(symbol, side, qty, order_time):
+    try:
+        url = f"https://api-testnet.bybit.com/v5/execution/list?category=linear&symbol={symbol}"
+        response = requests.get(url)
+        data = response.json()
+        executions = data.get("result", {}).get("list", [])
+        print("📥 Execution list:", executions)
+
+        # Фільтруємо за часом і напрямком
+        for trade in executions:
+            trade_time = int(trade.get("execTime", 0))
+            trade_side = trade.get("side")
+            trade_qty = float(trade.get("execQty", 0))
+            if abs(trade_qty - qty) < 0.0001 and trade_side == side and trade_time >= order_time:
+                return {
+                    "price": trade.get("execPrice"),
+                    "pnl": trade.get("closedPnl"),
+                    "result": "Win" if float(trade.get("closedPnl", 0)) >= 0 else "Loss"
+                }
+        return None
+    except Exception as e:
+        print(f"❌ get_last_trade_result() error: {e}")
+        return None
 # === Webhook ===
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -163,20 +235,42 @@ def webhook():
 
         order = place_order(symbol, side, qty, tp, sl)
 
-        # Якщо TP не був прийнятий — створити окремий TP-ордер
         if tp and ("takeProfit" not in json.dumps(order)):
             send_telegram_message(f"⚠️ TP не встановлено, створюємо окремий TP-ордер @ {tp}")
             create_take_profit_order(symbol, side, qty, tp)
 
+        if sl and ("stopLoss" not in json.dumps(order)):
+            send_telegram_message(f"⚠️ SL не встановлено, створюємо окремий SL-ордер @ {sl}")
+            create_stop_loss_order(symbol, side, qty, sl)
+
         msg = (
-            f"✅ Ордер відправлено!\n"
-            f"Пара: {symbol}\n"
-            f"Сторона: {side}\n"
-            f"Кількість: {qty}\n"
-            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
-            f"\nВідповідь: {json.dumps(order, indent=2)}"
+            f"✅ Ордер відправлено!
+"
+            f"Пара: {symbol}
+"
+            f"Сторона: {side}
+"
+            f"Кількість: {qty}
+"
+            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}
+"
+            f"
+Відповідь: {json.dumps(order, indent=2)}"
         )
         send_telegram_message(msg)
+        # 🔁 Затримка перед перевіркою результату
+        time.sleep(10)
+        order_time = int(order.get("time", time.time() * 1000))
+        trade_result = get_last_trade_result(symbol, side, qty, order_time)
+        if trade_result:
+            send_telegram_message(
+                f"📉 Угода завершена!\n"
+                f"Пара: {symbol}\n"
+                f"Результат: {'✅' if trade_result['result'] == 'Win' else '❌'} {trade_result['result']}\n"
+                f"P&L: {trade_result['pnl']} USDT\n"
+                f"Ціна виходу: {trade_result['price']}"
+            )
+
         return {"success": True, "order": order}
 
     except Exception as e:
@@ -189,5 +283,3 @@ def webhook():
 if __name__ == '__main__':
     print("🚀 Flask-сервер запущено на 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
-
-
