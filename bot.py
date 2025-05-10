@@ -41,7 +41,6 @@ def get_price(symbol):
         url = f"https://api-testnet.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
         response = requests.get(url)
         data = response.json()
-        print("📊 API response:", data)
         if "result" in data and "list" in data["result"]:
             last_price = data["result"]["list"][0].get("lastPrice")
             return float(last_price) if last_price else None
@@ -50,13 +49,34 @@ def get_price(symbol):
         print(f"❌ get_price() error: {e}")
         return None
 
+# === Отримати інформацію про останню угоду
+def get_last_trade_result(symbol, side, qty, order_time):
+    try:
+        url = f"https://api-testnet.bybit.com/v5/execution/list?category=linear&symbol={symbol}"
+        response = requests.get(url)
+        data = response.json()
+        executions = data.get("result", {}).get("list", [])
+        for trade in executions:
+            trade_time = int(trade.get("execTime", 0))
+            trade_side = trade.get("side")
+            trade_qty = float(trade.get("execQty", 0))
+            if abs(trade_qty - qty) < 0.0001 and trade_side == side and trade_time >= order_time:
+                return {
+                    "price": trade.get("execPrice"),
+                    "pnl": trade.get("closedPnl"),
+                    "result": "Win" if float(trade.get("closedPnl", 0)) >= 0 else "Loss"
+                }
+        return None
+    except Exception as e:
+        print(f"❌ get_last_trade_result() error: {e}")
+        return None
+
 # === Створити окремий TP-ордер
 def create_take_profit_order(symbol, side, qty, tp):
     try:
         tp_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
-
         order_data = {
             "category": "linear",
             "symbol": symbol,
@@ -67,10 +87,8 @@ def create_take_profit_order(symbol, side, qty, tp):
             "timeInForce": "GoodTillCancel",
             "reduceOnly": True
         }
-
         body = json.dumps(order_data)
         sign = sign_request(api_key, api_secret, body, timestamp)
-
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": sign,
@@ -78,13 +96,12 @@ def create_take_profit_order(symbol, side, qty, tp):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-
         url = "https://api-testnet.bybit.com/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
         print("📤 Окремий TP-ордер:", response.text)
         return response.json()
     except Exception as e:
-        print(f"❌ Помилка при створенні TP ордера: {e}")
+        print(f"❌ TP fallback error: {e}")
         return None
 
 # === Створити окремий SL-ордер
@@ -93,7 +110,6 @@ def create_stop_loss_order(symbol, side, qty, sl):
         sl_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
-
         order_data = {
             "category": "linear",
             "symbol": symbol,
@@ -104,10 +120,8 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "timeInForce": "GoodTillCancel",
             "reduceOnly": True
         }
-
         body = json.dumps(order_data)
         sign = sign_request(api_key, api_secret, body, timestamp)
-
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": sign,
@@ -115,13 +129,12 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-
         url = "https://api-testnet.bybit.com/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
         print("📤 Окремий SL-ордер:", response.text)
         return response.json()
     except Exception as e:
-        print(f"❌ Помилка при створенні SL ордера: {e}")
+        print(f"❌ SL fallback error: {e}")
         return None
 
 # === Відправити основний ордер
@@ -135,14 +148,12 @@ def place_order(symbol, side, qty, tp=None, sl=None):
         recv_window = "5000"
 
         # Перевірка адекватності TP/SL
-        max_tp_range = 0.10  # 10%
-        max_sl_range = 0.05  # 5%
-
+        max_tp_range = 0.10
+        max_sl_range = 0.05
         if tp and abs(float(tp) - price) > price * max_tp_range:
-            raise ValueError(f"⚠️ TP занадто далекий від ринку")
-
+            raise ValueError("⚠️ TP занадто далекий від ринку")
         if sl and abs(float(sl) - price) > price * max_sl_range:
-            raise ValueError(f"⚠️ SL занадто далекий від ринку")
+            raise ValueError("⚠️ SL занадто далекий від ринку")
 
         order_data = {
             "category": "linear",
@@ -167,7 +178,6 @@ def place_order(symbol, side, qty, tp=None, sl=None):
 
         body = json.dumps(order_data)
         sign = sign_request(api_key, api_secret, body, timestamp)
-
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": sign,
@@ -175,40 +185,13 @@ def place_order(symbol, side, qty, tp=None, sl=None):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-
         response = requests.post(url, data=body, headers=headers)
         print("📤 Відповідь Bybit:", response.text)
         return response.json()
-
     except Exception as e:
         print(f"❌ place_order error: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
-
-# === Отримати інформацію про останню угоду
-def get_last_trade_result(symbol, side, qty, order_time):
-    try:
-        url = f"https://api-testnet.bybit.com/v5/execution/list?category=linear&symbol={symbol}"
-        response = requests.get(url)
-        data = response.json()
-        executions = data.get("result", {}).get("list", [])
-        print("📥 Execution list:", executions)
-
-        # Фільтруємо за часом і напрямком
-        for trade in executions:
-            trade_time = int(trade.get("execTime", 0))
-            trade_side = trade.get("side")
-            trade_qty = float(trade.get("execQty", 0))
-            if abs(trade_qty - qty) < 0.0001 and trade_side == side and trade_time >= order_time:
-                return {
-                    "price": trade.get("execPrice"),
-                    "pnl": trade.get("closedPnl"),
-                    "result": "Win" if float(trade.get("closedPnl", 0)) >= 0 else "Loss"
-                }
-        return None
-    except Exception as e:
-        print(f"❌ get_last_trade_result() error: {e}")
-        return None
 # === Webhook ===
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -221,17 +204,9 @@ def webhook():
 
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
-        qty = data.get("qty", default_base_qty)
+        qty = float(data.get("qty", default_base_qty))
         tp = data.get("tp")
         sl = data.get("sl")
-
-        if not side or not symbol or not qty:
-            raise ValueError("❌ Відсутні ключові параметри (side, symbol або qty)")
-
-        try:
-            qty = float(qty)
-        except Exception:
-            raise ValueError(f"❌ Неможливо перетворити qty: {qty}")
 
         order = place_order(symbol, side, qty, tp, sl)
 
@@ -244,21 +219,16 @@ def webhook():
             create_stop_loss_order(symbol, side, qty, sl)
 
         msg = (
-            f"✅ Ордер відправлено!
-"
-            f"Пара: {symbol}
-"
-            f"Сторона: {side}
-"
-            f"Кількість: {qty}
-"
-            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}
-"
-            f"
-Відповідь: {json.dumps(order, indent=2)}"
+            f"✅ Ордер відправлено!\n"
+            f"Пара: {symbol}\n"
+            f"Сторона: {side}\n"
+            f"Кількість: {qty}\n"
+            f"TP: {tp or 'немає'} | SL: {sl or 'немає'}\n"
+            f"\nВідповідь: {json.dumps(order, indent=2)}"
         )
         send_telegram_message(msg)
-        # 🔁 Затримка перед перевіркою результату
+
+        # 🔁 Затримка + результат
         time.sleep(10)
         order_time = int(order.get("time", time.time() * 1000))
         trade_result = get_last_trade_result(symbol, side, qty, order_time)
