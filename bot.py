@@ -5,8 +5,11 @@ import json
 import hashlib
 import requests
 from flask import Flask, request
+from dotenv import load_dotenv
 
-# === Змінні з оточення ===
+# === Завантаження змінних середовища з bot.env ===
+load_dotenv("bot.env")
+
 api_key = os.environ["api_key"]
 api_secret = os.environ["api_secret"]
 default_symbol = os.environ.get("symbol", "BTCUSDT")
@@ -14,6 +17,7 @@ default_base_qty = float(os.environ.get("base_qty", 0.01))
 webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
+
 
 app = Flask(__name__)
 
@@ -221,4 +225,8 @@ def webhook():
 
 # === Запуск Flask
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    
+# === Запуск Flask
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # підтримка для Render
+    app.run(host="0.0.0.0", port=port)
