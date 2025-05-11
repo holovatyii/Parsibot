@@ -6,7 +6,7 @@ import json
 import csv
 import hashlib
 import requests
-from flask import Flask, request
+from flask import Flask, request, send_file
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -253,6 +253,26 @@ def webhook():
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
+
+@app.route("/csv", methods=["GET"])
+def send_csv_to_telegram():
+    try:
+        url = f"https://api.telegram.org/bot{telegram_token}/sendDocument"
+        with open(CSV_LOG_PATH, "rb") as file:
+            files = {"document": file}
+            data = {
+                "chat_id": telegram_chat_id,
+                "caption": "📊 Trades CSV лог файл"
+            }
+            response = requests.post(url, data=data, files=files)
+        return {
+            "status": "success",
+            "telegram_response": response.json()
+        }
+    except Exception as e:
+        error_text = f"❌ Не вдалося надіслати CSV у Telegram: {e}"
+        print(error_text)
+        return {"error": error_text}, 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
