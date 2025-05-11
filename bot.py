@@ -1,4 +1,3 @@
-
 import os
 import time
 import hmac
@@ -164,7 +163,7 @@ def create_stop_loss_order(symbol, side, qty, sl):
 
 def create_trailing_stop(symbol, side, callback_rate):
     try:
-        position_idx = 1 if side == "Buy" else 2
+        position_idx = 0
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         order_data = {
