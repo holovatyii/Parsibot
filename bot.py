@@ -90,15 +90,11 @@ def create_take_profit_order(symbol, side, qty, tp):
         if price is None:
             send_telegram_message("❌ Не вдалося отримати ціну для TP.")
             return None
-
         max_tp = price * (1 + MAX_TP_DISTANCE_PERC)
         if tp > max_tp:
             original_tp = tp
             tp = round(max_tp, 2)
-            send_telegram_message(
-                f"⚠️ TP {original_tp} занадто далекий від ціни {price}. Автоматично скориговано до {tp} (макс {MAX_TP_DISTANCE_PERC*100}%)."
-            )
-
+            send_telegram_message(f"⚠️ TP {original_tp} занадто далекий від ціни {price}. Автоматично скориговано до {tp} (макс {MAX_TP_DISTANCE_PERC*100}%).")
         tp_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
@@ -126,38 +122,6 @@ def create_take_profit_order(symbol, side, qty, tp):
         return response.json()
     except Exception as e:
         print(f"❌ TP fallback error: {e}")
-        return None
-
-def create_trailing_stop_order(symbol, side, qty, activation_price, callback_rate):
-    try:
-        trail_side = "Sell" if side == "Buy" else "Buy"
-        timestamp = str(int(time.time() * 1000))
-        recv_window = "5000"
-        order_data = {
-            "category": "linear",
-            "symbol": symbol,
-            "side": trail_side,
-            "orderType": "TrailingStopMarket",
-            "qty": str(qty),
-            "activationPrice": str(activation_price),
-            "callbackRate": str(callback_rate),
-            "timeInForce": "GoodTillCancel",
-            "reduceOnly": True
-        }
-        body = json.dumps(order_data)
-        sign = sign_request(api_key, api_secret, body, timestamp)
-        headers = {
-            "X-BAPI-API-KEY": api_key,
-            "X-BAPI-SIGN": sign,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "Content-Type": "application/json"
-        }
-        url = f"{base_url}/v5/order/create"
-        response = requests.post(url, data=body, headers=headers)
-        return response.json()
-    except Exception as e:
-        print(f"❌ Trailing SL error: {e}")
         return None
 
 def create_stop_loss_order(symbol, side, qty, sl):
@@ -197,3 +161,88 @@ def create_stop_loss_order(symbol, side, qty, sl):
         print(f"❌ SL fallback error: {e}")
         return None
 
+def create_trailing_stop_order(symbol, side, qty, activation_price, callback_rate):
+    try:
+        trail_side = "Sell" if side == "Buy" else "Buy"
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": trail_side,
+            "orderType": "TrailingStopMarket",
+            "qty": str(qty),
+            "activationPrice": str(activation_price),
+            "callbackRate": str(callback_rate),
+            "timeInForce": "GoodTillCancel",
+            "reduceOnly": True
+        }
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+        url = f"{base_url}/v5/order/create"
+        response = requests.post(url, data=body, headers=headers)
+        send_telegram_message(f"🧾 Trailing SL Response:\n{json.dumps(response.json(), indent=2)}")
+        return response.json()
+    except Exception as e:
+        error_text = f"❌ Trailing SL error: {e}"
+        print(error_text)
+        send_telegram_message(error_text)
+        return None
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    try:
+        data = request.get_json(force=True)
+        if not data or data.get("password") != webhook_password:
+            return {"error": "Unauthorized"}, 401
+
+        side = data.get("side")
+        symbol = data.get("symbol", default_symbol)
+        qty = float(data.get("qty", default_base_qty))
+        tp = float(data.get("tp"))
+        sl = float(data.get("sl"))
+        use_trailing = data.get("trailing", False)
+        callback = float(data.get("callback", 0.75))
+
+        market_result = create_market_order(symbol, side, qty)
+        if not market_result or market_result.get("retCode") != 0:
+            send_telegram_message(f"❌ Market ордер не створено: {market_result}")
+            return {"error": "Market order failed"}, 400
+
+        tp_result = create_take_profit_order(symbol, side, qty, tp)
+        sl_result = create_stop_loss_order(symbol, side, qty, sl)
+        trailing_result = None
+
+        if use_trailing:
+            activation_price = get_price(symbol)
+            trailing_result = create_trailing_stop_order(symbol, side, qty, activation_price, callback)
+
+        if tp_result and (sl_result or trailing_result):
+            send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
+        else:
+            send_telegram_message(f"⚠️ Ордер частково виконано. TP або SL не були створені.\nTP: {tp_result is not None}, SL: {sl_result is not None}, Trailing: {trailing_result is not None}")
+
+        if debug_responses:
+            send_telegram_message(f"🧾 Market Order виконано: {side} {symbol}, Qty: {qty}")
+            tp_id = tp_result["result"].get("orderId", "❌") if tp_result else "❌"
+            sl_id = sl_result["result"].get("orderId", "❌") if sl_result else "❌"
+            tr_id = trailing_result["result"].get("orderId", "❌") if trailing_result else "❌"
+            summary = f"📊 Ордер з TradingView виконано\nПара: {symbol} | Сторона: {side}\n🎯 TP: {tp} (Limit) 🆔 {tp_id}\n🛡 SL: trailing ({callback}%) + reserve 🆔 {tr_id}"
+            send_telegram_message(summary)
+
+        return {"success": True}
+    except Exception as e:
+        error_msg = f"🔥 Webhook error: {e}"
+        send_telegram_message(error_msg)
+        return {"error": str(e)}, 500
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
