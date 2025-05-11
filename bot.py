@@ -255,7 +255,10 @@ def webhook():
         return {"error": str(e)}, 500
 
 @app.route("/csv", methods=["GET"])
+@app.route("/csv", methods=["GET"])
 def send_csv_to_telegram():
+    if request.args.get("key") != webhook_password:
+        return {"error": "Unauthorized"}, 401
     try:
         url = f"https://api.telegram.org/bot{telegram_token}/sendDocument"
         with open(CSV_LOG_PATH, "rb") as file:
@@ -273,6 +276,7 @@ def send_csv_to_telegram():
         error_text = f"❌ Не вдалося надіслати CSV у Telegram: {e}"
         print(error_text)
         return {"error": error_text}, 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
