@@ -1,3 +1,4 @@
+
 import os
 import time
 import hmac
@@ -183,14 +184,15 @@ def create_trailing_stop(symbol, side, callback_rate):
         }
         url = f"{base_url}/v5/position/trading-stop"
         response = requests.post(url, data=body, headers=headers)
-        send_telegram_message(f"🧾 Trailing SL Response:\\n{json.dumps(response.json(), indent=2)}")
+        send_telegram_message(f"🧾 Trailing SL Response:\n{json.dumps(response.json(), indent=2)}")
         return response.json()
     except Exception as e:
         error_text = f"❌ Trailing SL error: {e}"
         print(error_text)
         send_telegram_message(error_text)
         return None
-        @app.route("/webhook", methods=["POST"])
+
+@app.route("/webhook", methods=["POST"])
 def webhook():
     try:
         data = request.get_json(force=True)
@@ -233,7 +235,6 @@ def webhook():
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
