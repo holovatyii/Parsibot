@@ -21,7 +21,7 @@ env = os.environ.get("env", "live")
 debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
-MAX_TP_DISTANCE_PERC = 0.15
+MAX_TP_DISTANCE_PERC = 0.20
 MAX_SL_DISTANCE_PERC = 0.05
 
 app = Flask(__name__)
@@ -56,6 +56,34 @@ def is_tp_valid(tp, price):
 
 def is_sl_valid(sl, price):
     return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
+
+def create_market_order(symbol, side, qty):
+    try:
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": side,
+            "orderType": "Market",
+            "qty": str(qty),
+            "timeInForce": "ImmediateOrCancel"
+        }
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+        url = f"{base_url}/v5/order/create"
+        response = requests.post(url, data=body, headers=headers)
+        return response.json()
+    except Exception as e:
+        print(f"❌ Market order error: {e}")
+        return None
 
 def create_take_profit_order(symbol, side, qty, tp):
     try:
@@ -139,6 +167,11 @@ def webhook():
         tp = float(data.get("tp"))
         sl = float(data.get("sl"))
 
+        market_result = create_market_order(symbol, side, qty)
+        if not market_result or market_result.get("retCode") != 0:
+            send_telegram_message(f"❌ Market ордер не створено: {market_result}")
+            return {"error": "Market order failed"}, 400
+
         tp_result = create_take_profit_order(symbol, side, qty, tp)
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
 
@@ -148,6 +181,7 @@ def webhook():
             send_telegram_message(f"⚠️ Ордер частково виконано. TP або SL не були створені.\nTP: {tp_result is not None}, SL: {sl_result is not None}")
 
         if debug_responses:
+            send_telegram_message(f"🧾 Market Response:\n{json.dumps(market_result, indent=2)}")
             if tp_result:
                 send_telegram_message(f"🧾 TP Response:\n{json.dumps(tp_result, indent=2)}")
             if sl_result:
@@ -162,3 +196,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
