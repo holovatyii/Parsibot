@@ -113,7 +113,8 @@ def create_stop_loss_order(symbol, side, qty, sl):
         print(f"❌ SL fallback error: {e}")
         return None
 
-def check_position_tp_sl(symbol):
+
+def check_position_tp_sl(symbol, side, qty, tp, sl):
     try:
         url = f"{base_url}/v5/position/list"
         timestamp = str(int(time.time() * 1000))
@@ -144,14 +145,23 @@ def check_position_tp_sl(symbol):
             position = data["result"]["list"][0]
             take_profit = position.get("takeProfit")
             stop_loss = position.get("stopLoss")
-            if not take_profit or not stop_loss:
-                send_telegram_message("🚨 TP/SL не встановлено. Пробую fallback...")
-                return False
+
+            if not take_profit and tp:
+                send_telegram_message("⚠️ TP не встановлено. Пробую fallback...")
+                create_take_profit_order(symbol, side, qty, tp)
+
+            if not stop_loss and sl:
+                send_telegram_message("⚠️ SL не встановлено. Пробую fallback...")
+                create_stop_loss_order(symbol, side, qty, sl)
+
             return True
         return False
     except Exception as e:
         send_telegram_message(f"❌ TP/SL check error: {e}")
         return False
+
+
+
 
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
