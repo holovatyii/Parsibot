@@ -1,0 +1,11 @@
+# Логи
+trades.csv
+
+# Конфіденційні файли
+.env
+*.env
+
+# IDE / ОС сміття
+__pycache__/
+*.pyc
+.DS_Store
