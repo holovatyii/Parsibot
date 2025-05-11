@@ -126,6 +126,7 @@ def create_stop_loss_order(symbol, side, qty, sl):
         if not is_sl_valid(sl, price):
             send_telegram_message(f"🚫 SL {sl} занадто далекий від ціни {price}. Не створюю.")
             return None
+        trigger_direction = 1 if side == "Buy" else 2  # 1 = price rises to trigger, 2 = price falls to trigger
         sl_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
@@ -135,7 +136,8 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "side": sl_side,
             "orderType": "Market",
             "qty": str(qty),
-            "stopLoss": str(sl),
+            "triggerPrice": str(sl),
+            "triggerDirection": trigger_direction,
             "timeInForce": "GoodTillCancel",
             "reduceOnly": True
         }
@@ -154,6 +156,7 @@ def create_stop_loss_order(symbol, side, qty, sl):
     except Exception as e:
         print(f"❌ SL fallback error: {e}")
         return None
+
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
