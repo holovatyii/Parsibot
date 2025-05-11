@@ -20,8 +20,8 @@ telegram_chat_id = os.environ["telegram_chat_id"]
 env = os.environ.get("env", "live")
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
-MAX_TP_DISTANCE_PERC = 0.10
-MAX_SL_DISTANCE_PERC = 0.05
+MAX_TP_DISTANCE_PERC = 0.15  # ✅ TP дозволено до 15%
+MAX_SL_DISTANCE_PERC = 0.05  # SL залишено 5%
 
 app = Flask(__name__)
 
@@ -149,3 +149,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
