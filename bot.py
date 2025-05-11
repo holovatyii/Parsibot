@@ -7,7 +7,6 @@ import requests
 from flask import Flask, request
 from dotenv import load_dotenv
 
-# === Завантаження змінних середовища з bot.env ===
 load_dotenv("bot.env")
 
 api_key = os.environ["api_key"]
@@ -22,7 +21,7 @@ debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
 MAX_TP_DISTANCE_PERC = 0.20
-MAX_SL_DISTANCE_PERC = 0.05
+MAX_SL_DISTANCE_PERC = 0.06  # ✅ було 0.05
 
 app = Flask(__name__)
 
@@ -101,7 +100,7 @@ def create_take_profit_order(symbol, side, qty, tp):
             "orderType": "Limit",
             "qty": str(qty),
             "price": str(tp),
-            "timeInForce": "GoodTillCancel",
+            "timeInForce": "PostOnly",  # ✅ було GoodTillCancel
             "reduceOnly": True
         }
         body = json.dumps(order_data)
@@ -196,4 +195,5 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
