@@ -21,8 +21,7 @@ debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
 MAX_TP_DISTANCE_PERC = 0.30
-MAX_SL_DISTANCE_PERC = 0.07  # ← тепер стоп-лосс дозволений до -7%
-
+MAX_SL_DISTANCE_PERC = 0.07
 
 app = Flask(__name__)
 
@@ -97,8 +96,7 @@ def create_take_profit_order(symbol, side, qty, tp):
             original_tp = tp
             tp = round(max_tp, 2)
             send_telegram_message(
-                f"⚠️ TP {original_tp} занадто далекий від ціни {price}. "
-                f"Автоматично скориговано до {tp} (макс {MAX_TP_DISTANCE_PERC*100}%)."
+                f"⚠️ TP {original_tp} занадто далекий від ціни {price}. Автоматично скориговано до {tp} (макс {MAX_TP_DISTANCE_PERC*100}%)."
             )
 
         tp_side = "Sell" if side == "Buy" else "Buy"
@@ -129,7 +127,6 @@ def create_take_profit_order(symbol, side, qty, tp):
     except Exception as e:
         print(f"❌ TP fallback error: {e}")
         return None
-
 
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
@@ -168,7 +165,6 @@ def create_stop_loss_order(symbol, side, qty, sl):
         print(f"❌ SL fallback error: {e}")
         return None
 
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -195,24 +191,23 @@ def webhook():
             send_telegram_message(f"⚠️ Ордер частково виконано. TP або SL не були створені.\nTP: {tp_result is not None}, SL: {sl_result is not None}")
 
         if debug_responses:
-    send_telegram_message(f"🧾 Market Order виконано: {side} {symbol}, Qty: {qty}")
+            send_telegram_message(f"🧾 Market Order виконано: {side} {symbol}, Qty: {qty}")
 
-    tp_success = tp_result and tp_result.get("retCode") == 0
-    sl_success = sl_result and sl_result.get("retCode") == 0
+            tp_success = tp_result and tp_result.get("retCode") == 0
+            sl_success = sl_result and sl_result.get("retCode") == 0
 
-    tp_price = tp
-    sl_price = sl
-    tp_id = tp_result["result"].get("orderId", "N/A") if tp_success else "❌"
-    sl_id = sl_result["result"].get("orderId", "N/A") if sl_success else "❌"
+            tp_price = tp
+            sl_price = sl
+            tp_id = tp_result["result"].get("orderId", "N/A") if tp_success else "❌"
+            sl_id = sl_result["result"].get("orderId", "N/A") if sl_success else "❌"
 
-    summary = (
-        f"📊 Ордер з TradingView виконано\n"
-        f"Пара: {symbol} | Сторона: {side}\n"
-        f"🎯 TP: {tp_price} (Limit) 🆔 {tp_id}\n"
-        f"🛡 SL: {sl_price} (Trigger Market) 🆔 {sl_id}"
-    )
-    send_telegram_message(summary)
-
+            summary = (
+                f"📊 Ордер з TradingView виконано\n"
+                f"Пара: {symbol} | Сторона: {side}\n"
+                f"🎯 TP: {tp_price} (Limit) 🆔 {tp_id}\n"
+                f"🛡 SL: {sl_price} (Trigger Market) 🆔 {sl_id}"
+            )
+            send_telegram_message(summary)
 
         return {"success": True}
     except Exception as e:
@@ -223,5 +218,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
