@@ -21,7 +21,8 @@ debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
 MAX_TP_DISTANCE_PERC = 0.20
-MAX_SL_DISTANCE_PERC = 0.06  # ✅ було 0.05
+MAX_SL_DISTANCE_PERC = 0.07  # ← тепер стоп-лосс дозволений до -7%
+
 
 app = Flask(__name__)
 
