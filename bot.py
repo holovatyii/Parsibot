@@ -163,7 +163,6 @@ def check_position_tp_sl(symbol, side, qty, tp, sl):
 
 
 
-
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
         price = get_price(symbol)
