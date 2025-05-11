@@ -183,7 +183,8 @@ def create_trailing_stop(symbol, side, callback_rate):
         }
         url = f"{base_url}/v5/position/trading-stop"
         response = requests.post(url, data=body, headers=headers)
-        send_telegram_message(f"🧾 Trailing SL Response:
+        send_telegram_message(f"🧾 Trailing SL Response:\\n{json.dumps(response.json(), indent=2)}")
+
 {json.dumps(response.json(), indent=2)}")
         return response.json()
     except Exception as e:
