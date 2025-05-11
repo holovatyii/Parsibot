@@ -19,7 +19,7 @@ app = Flask(__name__)
 
 # === Telegram логування ===
 def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+    url = "https://api.telegram.org/bot" + telegram_token + "/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
     try:
         requests.post(url, json=data)
@@ -130,7 +130,17 @@ def check_position_tp_sl(symbol):
             "Content-Type": "application/json"
         }
         response = requests.get(url, params=query, headers=headers)
-        data = response.json()
+
+        if response.status_code != 200:
+            send_telegram_message(f"❌ Bybit API error {response.status_code}: {response.text}")
+            return False
+
+        try:
+            data = response.json()
+        except Exception as e:
+            send_telegram_message(f"❌ JSON decode error in check_position_tp_sl(): {e}")
+            return False
+
         if "result" in data and "list" in data["result"]:
             position = data["result"]["list"][0]
             take_profit = position.get("takeProfit")
