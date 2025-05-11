@@ -1,11 +1,14 @@
+
 import os
 import time
 import hmac
 import json
+import csv
 import hashlib
 import requests
 from flask import Flask, request
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv("bot.env")
 
@@ -22,6 +25,7 @@ base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.by
 
 MAX_TP_DISTANCE_PERC = 0.30
 MAX_SL_DISTANCE_PERC = 0.07
+CSV_LOG_PATH = "trades.csv"
 
 app = Flask(__name__)
 
@@ -191,6 +195,18 @@ def create_trailing_stop(symbol, side, callback_rate):
         send_telegram_message(error_text)
         return None
 
+def log_trade_to_csv(entry):
+    try:
+        file_exists = os.path.isfile(CSV_LOG_PATH)
+        with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
+            fieldnames = ["timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing", "order_id", "result", "pnl"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(entry)
+    except Exception as e:
+        print(f"CSV log error: {e}")
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -206,6 +222,7 @@ def webhook():
         use_trailing = data.get("trailing", False)
         callback = float(data.get("callback", 0.75))
 
+        entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
         if not market_result or market_result.get("retCode") != 0:
             send_telegram_message(f"❌ Market ордер не створено: {market_result}")
@@ -213,23 +230,25 @@ def webhook():
 
         tp_result = create_take_profit_order(symbol, side, qty, tp)
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
-        trailing_result = None
+        trailing_result = create_trailing_stop(symbol, side, callback) if use_trailing else None
 
-        if use_trailing:
-            trailing_result = create_trailing_stop(symbol, side, callback)
+        order_id = market_result["result"].get("orderId", "")
 
-        send_telegram_message(
-            f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}"
-        )
+        log_trade_to_csv({
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "symbol": symbol,
+            "side": side,
+            "qty": qty,
+            "entry_price": entry_price,
+            "tp": tp,
+            "sl": sl,
+            "trailing": use_trailing,
+            "order_id": order_id,
+            "result": "pending",
+            "pnl": ""
+        })
 
-        if debug_responses:
-            send_telegram_message(f"🧾 Market Order: {json.dumps(market_result, indent=2)}")
-            send_telegram_message(f"🧾 TP Order: {json.dumps(tp_result, indent=2)}")
-            if sl_result:
-                send_telegram_message(f"🧾 SL Order: {json.dumps(sl_result, indent=2)}")
-            if trailing_result:
-                send_telegram_message(f"🧾 Trailing SL Order: {json.dumps(trailing_result, indent=2)}")
-
+        send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
         return {"success": True}
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
@@ -238,5 +257,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
