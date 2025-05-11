@@ -126,7 +126,7 @@ def create_stop_loss_order(symbol, side, qty, sl):
         if not is_sl_valid(sl, price):
             send_telegram_message(f"🚫 SL {sl} занадто далекий від ціни {price}. Не створюю.")
             return None
-        trigger_direction = 1 if side == "Buy" else 2  # 1 = price rises to trigger, 2 = price falls to trigger
+        trigger_direction = 2 if side == "Buy" else 1
         sl_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
