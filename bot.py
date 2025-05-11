@@ -17,6 +17,8 @@ default_base_qty = float(os.environ.get("base_qty", 0.01))
 webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
+env = os.environ.get("env", "live")  # "test" або "live"
+base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
 app = Flask(__name__)
 
@@ -38,7 +40,7 @@ def sign_request(api_key, api_secret, body, timestamp):
 
 def get_price(symbol):
     try:
-        url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
+        url = f"{base_url}/v5/market/tickers?category=linear&symbol={symbol}"
         response = requests.get(url)
         data = response.json()
         if "result" in data and "list" in data["result"]:
@@ -73,7 +75,7 @@ def create_take_profit_order(symbol, side, qty, tp):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-        url = "https://api.bybit.com/v5/order/create"
+        url = f"{base_url}/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
         return response.json()
     except Exception as e:
@@ -104,7 +106,7 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
-        url = "https://api.bybit.com/v5/order/create"
+        url = f"{base_url}/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
         return response.json()
     except Exception as e:
@@ -113,7 +115,7 @@ def create_stop_loss_order(symbol, side, qty, sl):
 
 def check_position_tp_sl(symbol):
     try:
-        url = "https://api.bybit.com/v5/position/list"
+        url = f"{base_url}/v5/position/list"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         query = {"category": "linear", "symbol": symbol}
@@ -154,7 +156,7 @@ def check_position_tp_sl(symbol):
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
         price = get_price(symbol)
-        url = "https://api.bybit.com/v5/order/create"
+        url = f"{base_url}/v5/order/create"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         order_data = {
@@ -214,7 +216,7 @@ def webhook():
         send_telegram_message(error_msg)
         return {"error": str(e)}, 500
 
-# === Запуск Flask
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
