@@ -91,9 +91,11 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "category": "linear",
             "symbol": symbol,
             "side": sl_side,
-            "orderType": "Market",
+            "orderType": "Limit",
+            "triggerDirection": 2,
+            "triggerPrice": str(sl),
+            "price": str(sl),
             "qty": str(qty),
-            "stopLoss": str(sl),
             "timeInForce": "GoodTillCancel",
             "reduceOnly": True
         }
