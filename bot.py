@@ -18,19 +18,16 @@ webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
 
-
 app = Flask(__name__)
 
-# === Telegram логування ===
 def send_telegram_message(message):
-    url = "https://api.telegram.org/bot" + telegram_token + "/sendMessage"
+    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     data = {"chat_id": telegram_chat_id, "text": message}
     try:
         requests.post(url, json=data)
     except Exception as e:
         print(f"Telegram Error: {e}")
 
-# === Підпис запиту ===
 def sign_request(api_key, api_secret, body, timestamp):
     param_str = f"{timestamp}{api_key}5000{body}"
     return hmac.new(
@@ -39,7 +36,6 @@ def sign_request(api_key, api_secret, body, timestamp):
         digestmod=hashlib.sha256
     ).hexdigest()
 
-# === Отримати ринкову ціну
 def get_price(symbol):
     try:
         url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
@@ -53,7 +49,6 @@ def get_price(symbol):
         print(f"❌ get_price() error: {e}")
         return None
 
-# === Створити окремий TP-ордер
 def create_take_profit_order(symbol, side, qty, tp):
     try:
         tp_side = "Sell" if side == "Buy" else "Buy"
@@ -85,7 +80,6 @@ def create_take_profit_order(symbol, side, qty, tp):
         print(f"❌ TP fallback error: {e}")
         return None
 
-# === Створити окремий SL-ордер
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
         sl_side = "Sell" if side == "Buy" else "Buy"
@@ -117,7 +111,6 @@ def create_stop_loss_order(symbol, side, qty, sl):
         print(f"❌ SL fallback error: {e}")
         return None
 
-# === Перевірити TP/SL
 def check_position_tp_sl(symbol):
     try:
         url = "https://api.bybit.com/v5/position/list"
@@ -158,7 +151,6 @@ def check_position_tp_sl(symbol):
         send_telegram_message(f"❌ TP/SL check error: {e}")
         return False
 
-# === Відправити ордер
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
         price = get_price(symbol)
@@ -199,7 +191,6 @@ def place_order(symbol, side, qty, tp=None, sl=None):
         print(f"❌ place_order error: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
-# === Webhook
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -225,8 +216,5 @@ def webhook():
 
 # === Запуск Flask
 if __name__ == "__main__":
-    
-# === Запуск Flask
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # підтримка для Render
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
