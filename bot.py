@@ -195,11 +195,24 @@ def webhook():
             send_telegram_message(f"⚠️ Ордер частково виконано. TP або SL не були створені.\nTP: {tp_result is not None}, SL: {sl_result is not None}")
 
         if debug_responses:
-            send_telegram_message(f"🧾 Market Response:\n{json.dumps(market_result, indent=2)}")
-            if tp_result:
-                send_telegram_message(f"🧾 TP Response:\n{json.dumps(tp_result, indent=2)}")
-            if sl_result:
-                send_telegram_message(f"🧾 SL Response:\n{json.dumps(sl_result, indent=2)}")
+    send_telegram_message(f"🧾 Market Order виконано: {side} {symbol}, Qty: {qty}")
+
+    tp_success = tp_result and tp_result.get("retCode") == 0
+    sl_success = sl_result and sl_result.get("retCode") == 0
+
+    tp_price = tp
+    sl_price = sl
+    tp_id = tp_result["result"].get("orderId", "N/A") if tp_success else "❌"
+    sl_id = sl_result["result"].get("orderId", "N/A") if sl_success else "❌"
+
+    summary = (
+        f"📊 Ордер з TradingView виконано\n"
+        f"Пара: {symbol} | Сторона: {side}\n"
+        f"🎯 TP: {tp_price} (Limit) 🆔 {tp_id}\n"
+        f"🛡 SL: {sl_price} (Trigger Market) 🆔 {sl_id}"
+    )
+    send_telegram_message(summary)
+
 
         return {"success": True}
     except Exception as e:
