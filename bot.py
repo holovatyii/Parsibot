@@ -18,10 +18,11 @@ webhook_password = os.environ["webhook_password"]
 telegram_token = os.environ["telegram_token"]
 telegram_chat_id = os.environ["telegram_chat_id"]
 env = os.environ.get("env", "live")
+debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
-MAX_TP_DISTANCE_PERC = 0.15  # ✅ TP дозволено до 15%
-MAX_SL_DISTANCE_PERC = 0.05  # SL залишено 5%
+MAX_TP_DISTANCE_PERC = 0.15
+MAX_SL_DISTANCE_PERC = 0.05
 
 app = Flask(__name__)
 
@@ -137,9 +138,21 @@ def webhook():
         qty = float(data.get("qty", default_base_qty))
         tp = float(data.get("tp"))
         sl = float(data.get("sl"))
-        create_take_profit_order(symbol, side, qty, tp)
-        create_stop_loss_order(symbol, side, qty, sl)
-        send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
+
+        tp_result = create_take_profit_order(symbol, side, qty, tp)
+        sl_result = create_stop_loss_order(symbol, side, qty, sl)
+
+        if tp_result and sl_result:
+            send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
+        else:
+            send_telegram_message(f"⚠️ Ордер частково виконано. TP або SL не були створені.\nTP: {tp_result is not None}, SL: {sl_result is not None}")
+
+        if debug_responses:
+            if tp_result:
+                send_telegram_message(f"🧾 TP Response:\n{json.dumps(tp_result, indent=2)}")
+            if sl_result:
+                send_telegram_message(f"🧾 SL Response:\n{json.dumps(sl_result, indent=2)}")
+
         return {"success": True}
     except Exception as e:
         error_msg = f"🔥 Webhook error: {e}"
@@ -149,4 +162,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
