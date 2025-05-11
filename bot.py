@@ -113,7 +113,6 @@ def create_stop_loss_order(symbol, side, qty, sl):
         print(f"❌ SL fallback error: {e}")
         return None
 
-
 def check_position_tp_sl(symbol, side, qty, tp, sl):
     try:
         url = f"{base_url}/v5/position/list"
@@ -159,12 +158,6 @@ def check_position_tp_sl(symbol, side, qty, tp, sl):
     except Exception as e:
         send_telegram_message(f"❌ TP/SL check error: {e}")
         return False
-
-
-
-
-
-
 
 def place_order(symbol, side, qty, tp=None, sl=None):
     try:
@@ -219,9 +212,7 @@ def webhook():
         sl = data.get("sl")
         order = place_order(symbol, side, qty, tp, sl)
         time.sleep(8)
-        if not check_position_tp_sl(symbol):
-            create_take_profit_order(symbol, side, qty, tp)
-            create_stop_loss_order(symbol, side, qty, sl)
+        check_position_tp_sl(symbol, side, qty, tp, sl)
         send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
         return {"success": True, "order": order}
     except Exception as e:
@@ -232,4 +223,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
