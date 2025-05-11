@@ -128,6 +128,38 @@ def create_take_profit_order(symbol, side, qty, tp):
         print(f"❌ TP fallback error: {e}")
         return None
 
+def create_trailing_stop_order(symbol, side, qty, activation_price, callback_rate):
+    try:
+        trail_side = "Sell" if side == "Buy" else "Buy"
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": trail_side,
+            "orderType": "TrailingStopMarket",
+            "qty": str(qty),
+            "activationPrice": str(activation_price),
+            "callbackRate": str(callback_rate),
+            "timeInForce": "GoodTillCancel",
+            "reduceOnly": True
+        }
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+        url = f"{base_url}/v5/order/create"
+        response = requests.post(url, data=body, headers=headers)
+        return response.json()
+    except Exception as e:
+        print(f"❌ Trailing SL error: {e}")
+        return None
+
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
         price = get_price(symbol)
@@ -171,11 +203,14 @@ def webhook():
         data = request.get_json(force=True)
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
+
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
         qty = float(data.get("qty", default_base_qty))
         tp = float(data.get("tp"))
         sl = float(data.get("sl"))
+        use_trailing = data.get("trailing", False)
+        callback = float(data.get("callback", 0.75))
 
         market_result = create_market_order(symbol, side, qty)
         if not market_result or market_result.get("retCode") != 0:
@@ -183,7 +218,12 @@ def webhook():
             return {"error": "Market order failed"}, 400
 
         tp_result = create_take_profit_order(symbol, side, qty, tp)
-        sl_result = create_stop_loss_order(symbol, side, qty, sl)
+
+        if use_trailing:
+            activation_price = get_price(symbol)
+            sl_result = create_trailing_stop_order(symbol, side, qty, activation_price, callback)
+        else:
+            sl_result = create_stop_loss_order(symbol, side, qty, sl)
 
         if tp_result and sl_result:
             send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
@@ -197,7 +237,7 @@ def webhook():
             sl_success = sl_result and sl_result.get("retCode") == 0
 
             tp_price = tp
-            sl_price = sl
+            sl_price = sl if not use_trailing else f"trailing ({callback}%)"
             tp_id = tp_result["result"].get("orderId", "N/A") if tp_success else "❌"
             sl_id = sl_result["result"].get("orderId", "N/A") if sl_success else "❌"
 
@@ -205,7 +245,7 @@ def webhook():
                 f"📊 Ордер з TradingView виконано\n"
                 f"Пара: {symbol} | Сторона: {side}\n"
                 f"🎯 TP: {tp_price} (Limit) 🆔 {tp_id}\n"
-                f"🛡 SL: {sl_price} (Trigger Market) 🆔 {sl_id}"
+                f"🛡 SL: {sl_price} 🆔 {sl_id}"
             )
             send_telegram_message(summary)
 
