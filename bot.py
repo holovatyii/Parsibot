@@ -20,7 +20,7 @@ env = os.environ.get("env", "live")
 debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
-MAX_TP_DISTANCE_PERC = 0.20
+MAX_TP_DISTANCE_PERC = 0.30
 MAX_SL_DISTANCE_PERC = 0.07  # ← тепер стоп-лосс дозволений до -7%
 
 
@@ -88,9 +88,19 @@ def create_market_order(symbol, side, qty):
 def create_take_profit_order(symbol, side, qty, tp):
     try:
         price = get_price(symbol)
-        if not is_tp_valid(tp, price):
-            send_telegram_message(f"🚫 TP {tp} занадто далекий від ціни {price}. Не створюю.")
+        if price is None:
+            send_telegram_message("❌ Не вдалося отримати ціну для TP.")
             return None
+
+        max_tp = price * (1 + MAX_TP_DISTANCE_PERC)
+        if tp > max_tp:
+            original_tp = tp
+            tp = round(max_tp, 2)
+            send_telegram_message(
+                f"⚠️ TP {original_tp} занадто далекий від ціни {price}. "
+                f"Автоматично скориговано до {tp} (макс {MAX_TP_DISTANCE_PERC*100}%)."
+            )
+
         tp_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
@@ -101,7 +111,7 @@ def create_take_profit_order(symbol, side, qty, tp):
             "orderType": "Limit",
             "qty": str(qty),
             "price": str(tp),
-            "timeInForce": "PostOnly",  # ✅ було GoodTillCancel
+            "timeInForce": "PostOnly",
             "reduceOnly": True
         }
         body = json.dumps(order_data)
@@ -119,6 +129,7 @@ def create_take_profit_order(symbol, side, qty, tp):
     except Exception as e:
         print(f"❌ TP fallback error: {e}")
         return None
+
 
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
