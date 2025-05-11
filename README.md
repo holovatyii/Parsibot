@@ -1,94 +1,99 @@
+🧠 Bybit Trading Bot (Flask + Webhook + Telegram + CSV)
+✅ Можливості
+Приймає сигнали з TradingView Webhook
 
-# Bybit Trading Bot (Flask + Webhook + Telegram)
+Відкриває ордери на Bybit (Testnet або Mainnet)
 
-✅ Бот приймає сигнали з TradingView через webhook  
-✅ Відкриває ордери на Bybit (Testnet)  
-✅ Відправляє лог у Telegram  
-✅ Підтримка Take Profit та Stop Loss (TP/SL)
+Автоматично виставляє TP, SL або трейлінг-стоп
 
----
+Надсилає логи в Telegram
 
-## 📁 Структура проекту
+Логує угоди в trades.csv для подальшої оптимізації
 
-```
+📁 Структура проекту
+bash
+Copy
+Edit
 bybit_trading_bot/
-├── bybit_flask_server.py      # Основний Flask сервер
-├── config.json                # Налаштування API, symbol, qty, Telegram тощо
-├── requirements.txt           # Залежності
-└── README.md                  # Цей файл
-```
+├── bot.py               # Основний Flask сервер
+├── requirements.txt     # Залежності
+├── trades.csv           # CSV лог всіх угод (створюється автоматично)
+├── .env                 # Змінні оточення
+└── README.md            # Цей файл
+⚙️ Налаштування
+Встанови залежності:
 
----
-
-## ⚙️ Налаштування
-
-1. Встанови залежності:
-
-```bash
+bash
+Copy
+Edit
 pip install -r requirements.txt
-```
+Створи .env файл у корені:
 
-2. Заповни файл `config.json`:
+env
+Copy
+Edit
+api_key=YOUR_BYBIT_API_KEY
+api_secret=YOUR_BYBIT_SECRET
+symbol=BTCUSDT
+base_qty=0.01
+webhook_password=12345
+telegram_token=YOUR_TELEGRAM_BOT_TOKEN
+telegram_chat_id=YOUR_CHAT_ID
+env=test
+debug_responses=True
+🚀 Запуск
+bash
+Copy
+Edit
+python bot.py
+Сервер буде доступний на:
 
-```json
-{
-  "api_key": "YOUR_BYBIT_API_KEY",
-  "api_secret": "YOUR_BYBIT_SECRET",
-  "symbol": "SOLUSDT",
-  "base_qty": 0.01,
-  "webhook_password": "12345",
-  "telegram_token": "YOUR_TELEGRAM_BOT_TOKEN",
-  "telegram_chat_id": "YOUR_CHAT_ID"
-}
-```
-
----
-
-## 🚀 Запуск
-
-```bash
-python bybit_flask_server.py
-```
-
-> Сервер працює на `http://0.0.0.0:5000`
-
----
-
-## 📤 Приклад Webhook-сигналу з TP/SL
-
-```json
+arduino
+Copy
+Edit
+http://0.0.0.0:5000/webhook
+📤 Webhook-приклад для TradingView
+json
+Copy
+Edit
 {
   "password": "12345",
   "side": "Buy",
-  "symbol": "SOLUSDT",
+  "symbol": "BTCUSDT",
   "qty": 0.01,
-  "tp": 160,
-  "sl": 145
+  "tp": 103000,
+  "sl": 98000,
+  "trailing": true,
+  "callback": 0.75
 }
-```
+🧪 Тестування через curl
+bash
+Copy
+Edit
+curl -X POST http://127.0.0.1:5000/webhook \\
+-H "Content-Type: application/json" \\
+-d "{\"password\": \"12345\", \"side\": \"Buy\", \"symbol\": \"BTCUSDT\", \"qty\": 0.01, \"tp\": 103000, \"sl\": 98000, \"trailing\": true, \"callback\": 0.75}"
+📊 trades.csv
+Після кожної угоди створюється лог-файл trades.csv з колонками:
 
----
+sql
+Copy
+Edit
+timestamp, symbol, side, qty, entry_price, tp, sl, trailing, order_id, result, pnl
+🛡 Безпека
+Webhook-захист через password
 
-## 🧪 Тестування
+Ключі приховані через .env
 
-Для локального тесту можна скористатись `curl`:
+Обмеження на TP/SL діапазон
 
-```bash
-curl -X POST http://127.0.0.1:5000/webhook -H "Content-Type: application/json" -d "{\"password\": \"12345\", \"side\": \"Buy\", \"symbol\": \"SOLUSDT\", \"qty\": 0.01, \"tp\": 160, \"sl\": 145}"
-```
+🧠 Майбутнє
+Telegram-команди /status, /csv, /log
 
----
+AI-оптимізація TP/SL на основі trades.csv
 
-## 🛡 Функції безпеки
+Інтеграція з Google Sheets
 
-- Захист webhook — `password`
-- Всі ключі конфігурації зберігаються в `config.json`
-- Підтримка лише `Market` ордерів (на даному етапі)
+Мульти-монетна логіка
 
----
 
-## 🏁 Плани на майбутнє
-
-- [ ] Автоматичне закриття угод (реал SL/TP через позиції)
-- [ ] Підтримка трейлінг-стопу
-- [ ] Мульти-монетна логіка
