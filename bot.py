@@ -190,4 +190,53 @@ def create_trailing_stop(symbol, side, callback_rate):
         print(error_text)
         send_telegram_message(error_text)
         return None
+        @app.route("/webhook", methods=["POST"])
+def webhook():
+    try:
+        data = request.get_json(force=True)
+        if not data or data.get("password") != webhook_password:
+            return {"error": "Unauthorized"}, 401
+
+        side = data.get("side")
+        symbol = data.get("symbol", default_symbol)
+        qty = float(data.get("qty", default_base_qty))
+        tp = float(data.get("tp"))
+        sl = float(data.get("sl"))
+        use_trailing = data.get("trailing", False)
+        callback = float(data.get("callback", 0.75))
+
+        market_result = create_market_order(symbol, side, qty)
+        if not market_result or market_result.get("retCode") != 0:
+            send_telegram_message(f"❌ Market ордер не створено: {market_result}")
+            return {"error": "Market order failed"}, 400
+
+        tp_result = create_take_profit_order(symbol, side, qty, tp)
+        sl_result = create_stop_loss_order(symbol, side, qty, sl)
+        trailing_result = None
+
+        if use_trailing:
+            trailing_result = create_trailing_stop(symbol, side, callback)
+
+        send_telegram_message(
+            f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}"
+        )
+
+        if debug_responses:
+            send_telegram_message(f"🧾 Market Order: {json.dumps(market_result, indent=2)}")
+            send_telegram_message(f"🧾 TP Order: {json.dumps(tp_result, indent=2)}")
+            if sl_result:
+                send_telegram_message(f"🧾 SL Order: {json.dumps(sl_result, indent=2)}")
+            if trailing_result:
+                send_telegram_message(f"🧾 Trailing SL Order: {json.dumps(trailing_result, indent=2)}")
+
+        return {"success": True}
+    except Exception as e:
+        send_telegram_message(f"🔥 Webhook error: {e}")
+        return {"error": str(e)}, 500
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
 
