@@ -144,9 +144,24 @@ def create_take_profit_order(symbol, side, qty, tp):
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
         price = get_price(symbol)
-        if not is_sl_valid(sl, price):
-            send_telegram_message(f"🚫 SL {sl} занадто далекий від ціни {price}. Не створюю.")
+        if price is None:
+            send_telegram_message(f"❌ Не вдалося отримати ціну для SL.")
             return None
+
+        # Обчислюємо максимально допустимий SL
+        if side == "Buy":
+            max_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2)
+        else:
+            max_sl = round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
+
+        # Перевіряємо: SL нормальний чи ні
+        if not is_sl_valid(sl, price):
+            original_sl = sl
+            sl = max_sl
+            send_telegram_message(
+                f"⚠️ SL {original_sl} занадто далекий від ціни {price}. Автоматично скориговано до {sl} (макс {MAX_SL_DISTANCE_PERC*100}%)."
+            )
+
         trigger_direction = 2 if side == "Buy" else 1
         sl_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
@@ -174,8 +189,10 @@ def create_stop_loss_order(symbol, side, qty, sl):
         url = f"{base_url}/v5/order/create"
         response = requests.post(url, data=body, headers=headers)
         return response.json()
+
     except Exception as e:
         print(f"❌ SL fallback error: {e}")
+        send_telegram_message(f"❌ Помилка при створенні SL: {e}")
         return None
 
 def create_trailing_stop(symbol, side, callback_rate):
