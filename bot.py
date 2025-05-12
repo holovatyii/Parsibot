@@ -237,15 +237,26 @@ def webhook():
 
         entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
+
+        # ✅ Market order лог у Telegram
+        if debug_responses:
+            send_telegram_message(f"🧾 Market Order:\n{json.dumps(market_result, indent=2)}")
+
         if not market_result or market_result.get("retCode") != 0:
             send_telegram_message(f"❌ Market ордер не створено: {market_result}")
             return {"error": "Market order failed"}, 400
 
         tp_result = create_take_profit_order(symbol, side, qty, tp)
-        sl_result = create_stop_loss_order(symbol, side, qty, sl)
-        trailing_result = create_trailing_stop(symbol, side, callback) if use_trailing else None
+        if debug_responses and tp_result:
+            send_telegram_message(f"🧾 TP Order:\n{json.dumps(tp_result, indent=2)}")
 
-        # Безпечне витягування order_id
+        sl_result = create_stop_loss_order(symbol, side, qty, sl)
+        # повідомлення про SL already надсилається в самій функції, якщо не створюється
+
+        trailing_result = create_trailing_stop(symbol, side, callback) if use_trailing else None
+        if debug_responses and trailing_result:
+            send_telegram_message(f"🧾 Trailing SL Order:\n{json.dumps(trailing_result, indent=2)}")
+
         order_id = ""
         try:
             if market_result.get("result"):
@@ -276,6 +287,7 @@ def webhook():
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
+
 
 from flask import send_file
 import io
