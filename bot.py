@@ -216,6 +216,10 @@ def webhook():
 
         tp_result = create_take_profit_order(symbol, side, qty, tp)
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
+if use_trailing:
+    trailing_result = create_trailing_stop(symbol, side, callback)
+    if debug_responses and trailing_result:
+        send_telegram_message(f"🧾 Trailing SL Order:\n{json.dumps(trailing_result, indent=2)}")
 
         actual_sl = sl
         price = get_price(symbol)
