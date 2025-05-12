@@ -233,6 +233,7 @@ def webhook():
         send_telegram_message(
             f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}"
         )
+print("⚙️ Викликаємо log_trade_to_csv...")
 
         log_trade_to_csv({
             "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
