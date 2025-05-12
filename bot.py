@@ -275,17 +275,20 @@ if not os.path.exists(CSV_LOG_PATH):
         writer.writerow(["timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing", "order_id", "result", "pnl"])
 @app.route("/export-today-csv", methods=["GET"])
 def export_today_csv():
-    today = datetime.utcnow().strftime("%Y-%m-%d")
     output = io.StringIO()
     writer = csv.writer(output)
+
     try:
         with open(CSV_LOG_PATH, mode="r", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             writer.writerow(reader.fieldnames)
             for row in reader:
-                ts = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
-if (datetime.utcnow() - ts).total_seconds() <= 86400:
-                    writer.writerow([row[field] for field in reader.fieldnames])
+                try:
+                    ts = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+                    if (datetime.utcnow() - ts).total_seconds() <= 86400:
+                        writer.writerow([row[field] for field in reader.fieldnames])
+                except Exception as parse_error:
+                    continue  # Пропускаємо рядки з некоректним timestamp
     except Exception as e:
         return {"error": f"CSV export error: {e}"}, 500
 
@@ -294,8 +297,9 @@ if (datetime.utcnow() - ts).total_seconds() <= 86400:
         io.BytesIO(output.getvalue().encode()),
         mimetype="text/csv",
         as_attachment=True,
-        download_name=f"trades_{today}.csv"
+        download_name=f"trades_last_24h.csv"
     )
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
