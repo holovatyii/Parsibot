@@ -97,18 +97,19 @@ def create_take_profit_order(symbol, side, qty, tp):
         response = requests.post(url, data=body, headers=headers).json()
 
         ret_code = response.get("retCode")
-if ret_code == 0:
-    order_id = response["result"].get("orderId", "N/A")
-    send_telegram_message(f"🎯 TP створено ✅ ID: {order_id} (Limit)")
-elif ret_code == 110017:
-    send_telegram_message("⚠️ TP не створено: така позиція вже існує. Можливо, спроба створити reduce-only у напрямку активної позиції.")
-else:
-    send_telegram_message(f"❌ TP не створено\nПричина: {response.get('retMsg')} (retCode: {ret_code})")
+        if ret_code == 0:
+            order_id = response["result"].get("orderId", "N/A")
+            send_telegram_message(f"🎯 TP створено ✅ ID: {order_id} (Limit)")
+        elif ret_code == 110017:
+            send_telegram_message("⚠️ TP не створено: така позиція вже існує. Можливо, спроба створити reduce-only у напрямку активної позиції.")
+        else:
+            send_telegram_message(f"❌ TP не створено\nПричина: {response.get('retMsg')} (retCode: {ret_code})")
 
         return response
     except Exception as e:
         send_telegram_message(f"❌ TP fallback error: {e}")
         return None
+
 
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
