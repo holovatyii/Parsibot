@@ -271,6 +271,22 @@ import io
 from flask import send_file
 import io
 
+@app.route("/today-trades-json", methods=["GET"])
+def today_trades_json():
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    trades = []
+    try:
+        with open(CSV_LOG_PATH, mode="r", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row["timestamp"].startswith(today):
+                    trades.append(row)
+    except Exception as e:
+        return {"error": f"Read error: {e}"}, 500
+
+    return {"trades": trades}
+
+
 @app.route("/export-today-csv", methods=["GET"])
 def export_today_csv():
     today = datetime.utcnow().strftime("%Y-%m-%d")
