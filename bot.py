@@ -245,21 +245,26 @@ def webhook():
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
         trailing_result = create_trailing_stop(symbol, side, callback) if use_trailing else None
 
-        order_id = market_result["result"].get("orderId", "")
+        order_id = ""
+if market_result.get("result"):
+    order_id = market_result["result"].get("orderId", "")
 
-        log_trade_to_csv({
-            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-            "symbol": symbol,
-            "side": side,
-            "qty": qty,
-            "entry_price": entry_price,
-            "tp": tp,
-            "sl": sl,
-            "trailing": use_trailing,
-            "order_id": order_id,
-            "result": "pending",
-            "pnl": ""
-        })
+print(f"[LOG] Зберігаю трейд у CSV: {order_id}, {symbol}, {side}, qty={qty}, TP={tp}, SL={sl}")
+
+log_trade_to_csv({
+    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+    "symbol": symbol,
+    "side": side,
+    "qty": qty,
+    "entry_price": entry_price,
+    "tp": tp,
+    "sl": sl,
+    "trailing": use_trailing,
+    "order_id": order_id,
+    "result": "pending",
+    "pnl": ""
+})
+
 
         send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
         return {"success": True}
@@ -271,20 +276,6 @@ import io
 from flask import send_file
 import io
 
-@app.route("/today-trades-json", methods=["GET"])
-def today_trades_json():
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    trades = []
-    try:
-        with open(CSV_LOG_PATH, mode="r", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row["timestamp"].startswith(today):
-                    trades.append(row)
-    except Exception as e:
-        return {"error": f"Read error: {e}"}, 500
-
-    return {"trades": trades}
 
 
 @app.route("/export-today-csv", methods=["GET"])
