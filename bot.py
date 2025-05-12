@@ -216,10 +216,12 @@ def webhook():
 
         tp_result = create_take_profit_order(symbol, side, qty, tp)
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
-if use_trailing:
-    trailing_result = create_trailing_stop(symbol, side, callback)
-    if debug_responses and trailing_result:
-        send_telegram_message(f"🧾 Trailing SL Order:\n{json.dumps(trailing_result, indent=2)}")
+
+        trailing_result = None
+        if use_trailing:
+            trailing_result = create_trailing_stop(symbol, side, callback)
+            if debug_responses and trailing_result:
+                send_telegram_message(f"🧾 Trailing SL Order:\n{json.dumps(trailing_result, indent=2)}")
 
         actual_sl = sl
         price = get_price(symbol)
@@ -246,10 +248,12 @@ if use_trailing:
             "pnl": ""
         })
 
-        return {"success": True}
+        return {"success": True"}
+
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
+
 
 def log_trade_to_csv(entry):
     try:
