@@ -5,9 +5,10 @@ import json
 import csv
 import hashlib
 import requests
-from flask import Flask, request
+from flask import Flask, request, send_file
 from dotenv import load_dotenv
 from datetime import datetime
+import io
 
 load_dotenv("bot.env")
 
@@ -22,7 +23,6 @@ env = os.environ.get("env", "live")
 debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
-MAX_TP_DISTANCE_PERC = 0.30
 MAX_SL_DISTANCE_PERC = 0.07
 CSV_LOG_PATH = "trades.csv"
 
@@ -35,20 +35,12 @@ def send_telegram_message(message):
         requests.post(url, json=data)
     except Exception as e:
         print(f"Telegram Error: {e}")
-def send_csv_to_telegram():
-    try:
-        if not os.path.exists(CSV_LOG_PATH):
-            send_telegram_message("❌ CSV-файл не знайдено.")
-            return
-        with open(CSV_LOG_PATH, "rb") as file:
-            url = f"https://api.telegram.org/bot{telegram_token}/sendDocument"
-            data = {"chat_id": telegram_chat_id}
-            files = {"document": (CSV_LOG_PATH, file)}
-            response = requests.post(url, data=data, files=files)
-            if response.status_code != 200:
-                send_telegram_message(f"❌ Помилка відправки CSV: {response.text}")
-    except Exception as e:
-        send_telegram_message(f"🔥 Помилка при відправці CSV: {e}")
+
+def is_tp_direction_valid(tp, price, side):
+    return tp > price if side == "Buy" else tp < price
+
+def is_sl_valid(sl, price):
+    return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
 
 def sign_request(api_key, api_secret, body, timestamp):
     param_str = f"{timestamp}{api_key}5000{body}"
@@ -62,21 +54,13 @@ def get_price(symbol):
         if "result" in data and "list" in data["result"]:
             last_price = data["result"]["list"][0].get("lastPrice")
             return float(last_price) if last_price else None
-        return None
     except Exception as e:
-        print(f"❌ get_price() error: {e}")
-        return None
-
-def is_tp_valid(tp, price):
-    return abs(tp - price) / price <= MAX_TP_DISTANCE_PERC
-
-def is_sl_valid(sl, price):
-    return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
+        print(f"get_price() error: {e}")
+    return None
 
 def create_market_order(symbol, side, qty):
     try:
         timestamp = str(int(time.time() * 1000))
-        recv_window = "5000"
         order_data = {
             "category": "linear",
             "symbol": symbol,
@@ -91,14 +75,13 @@ def create_market_order(symbol, side, qty):
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": sign,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
-        url = f"{base_url}/v5/order/create"
-        response = requests.post(url, data=body, headers=headers)
+        response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
         return response.json()
     except Exception as e:
-        print(f"❌ Market order error: {e}")
+        print(f"Market order error: {e}")
         return None
 
 def create_take_profit_order(symbol, side, qty, tp):
@@ -107,14 +90,11 @@ def create_take_profit_order(symbol, side, qty, tp):
         if price is None:
             send_telegram_message("❌ Не вдалося отримати ціну для TP.")
             return None
-        max_tp = price * (1 + MAX_TP_DISTANCE_PERC)
-        if tp > max_tp:
-            original_tp = tp
-            tp = round(max_tp, 2)
-            send_telegram_message(f"⚠️ TP {original_tp} занадто далекий від ціни {price}. Автоматично скориговано до {tp} (макс {MAX_TP_DISTANCE_PERC*100}%).")
+        if not is_tp_direction_valid(tp, price, side):
+            send_telegram_message(f"🚫 TP {tp} некоректний: має бути {'вище' if side == 'Buy' else 'нижче'} за ціну {price} для {side}-позиції. Не створюю.")
+            return None
         tp_side = "Sell" if side == "Buy" else "Buy"
         timestamp = str(int(time.time() * 1000))
-        recv_window = "5000"
         order_data = {
             "category": "linear",
             "symbol": symbol,
@@ -131,41 +111,28 @@ def create_take_profit_order(symbol, side, qty, tp):
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": sign,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
-        url = f"{base_url}/v5/order/create"
-        response = requests.post(url, data=body, headers=headers)
+        response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
         return response.json()
     except Exception as e:
-        print(f"❌ TP fallback error: {e}")
+        print(f"TP error: {e}")
         return None
 
 def create_stop_loss_order(symbol, side, qty, sl):
     try:
         price = get_price(symbol)
         if price is None:
-            send_telegram_message(f"❌ Не вдалося отримати ціну для SL.")
+            send_telegram_message("❌ Не вдалося отримати ціну для SL.")
             return None
-
-        # Обчислюємо максимально допустимий SL
-        if side == "Buy":
-            max_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2)
-        else:
-            max_sl = round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
-
-        # Перевіряємо: SL нормальний чи ні
         if not is_sl_valid(sl, price):
             original_sl = sl
-            sl = max_sl
-            send_telegram_message(
-                f"⚠️ SL {original_sl} занадто далекий від ціни {price}. Автоматично скориговано до {sl} (макс {MAX_SL_DISTANCE_PERC*100}%)."
-            )
-
-        trigger_direction = 2 if side == "Buy" else 1
+            sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
+            send_telegram_message(f"⚠️ SL {original_sl} занадто далекий від ціни {price}. Автоматично скориговано до {sl}.")
         sl_side = "Sell" if side == "Buy" else "Buy"
+        trigger_direction = 2 if side == "Buy" else 1
         timestamp = str(int(time.time() * 1000))
-        recv_window = "5000"
         order_data = {
             "category": "linear",
             "symbol": symbol,
@@ -183,59 +150,14 @@ def create_stop_loss_order(symbol, side, qty, sl):
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": sign,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
-        url = f"{base_url}/v5/order/create"
-        response = requests.post(url, data=body, headers=headers)
+        response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
         return response.json()
-
     except Exception as e:
-        print(f"❌ SL fallback error: {e}")
         send_telegram_message(f"❌ Помилка при створенні SL: {e}")
         return None
-
-def create_trailing_stop(symbol, side, callback_rate):
-    try:
-        position_idx = 0
-        timestamp = str(int(time.time() * 1000))
-        recv_window = "5000"
-        order_data = {
-            "category": "linear",
-            "symbol": symbol,
-            "trailingStop": str(callback_rate),
-            "positionIdx": position_idx
-        }
-        body = json.dumps(order_data)
-        sign = sign_request(api_key, api_secret, body, timestamp)
-        headers = {
-            "X-BAPI-API-KEY": api_key,
-            "X-BAPI-SIGN": sign,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "Content-Type": "application/json"
-        }
-        url = f"{base_url}/v5/position/trading-stop"
-        response = requests.post(url, data=body, headers=headers)
-        send_telegram_message(f"🧾 Trailing SL Response:\n{json.dumps(response.json(), indent=2)}")
-        return response.json()
-    except Exception as e:
-        error_text = f"❌ Trailing SL error: {e}"
-        print(error_text)
-        send_telegram_message(error_text)
-        return None
-
-def log_trade_to_csv(entry):
-    try:
-        file_exists = os.path.isfile(CSV_LOG_PATH)
-        with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
-            fieldnames = ["timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing", "order_id", "result", "pnl"]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(entry)
-    except Exception as e:
-        print(f"CSV log error: {e}")
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -255,7 +177,6 @@ def webhook():
         entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
 
-        # ✅ Market order лог у Telegram
         if debug_responses:
             send_telegram_message(f"🧾 Market Order:\n{json.dumps(market_result, indent=2)}")
 
@@ -264,25 +185,18 @@ def webhook():
             return {"error": "Market order failed"}, 400
 
         tp_result = create_take_profit_order(symbol, side, qty, tp)
-        if debug_responses and tp_result:
-            send_telegram_message(f"🧾 TP Order:\n{json.dumps(tp_result, indent=2)}")
-
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
-        # повідомлення про SL already надсилається в самій функції, якщо не створюється
 
-        trailing_result = create_trailing_stop(symbol, side, callback) if use_trailing else None
-        if debug_responses and trailing_result:
-            send_telegram_message(f"🧾 Trailing SL Order:\n{json.dumps(trailing_result, indent=2)}")
+        actual_sl = sl
+        price = get_price(symbol)
+        if not is_sl_valid(sl, price):
+            actual_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
 
-        order_id = ""
-        try:
-            if market_result.get("result"):
-                order_id = market_result["result"].get("orderId", "")
-        except Exception as e:
-            print(f"[ERROR] Failed to extract orderId: {e}")
-            order_id = ""
+        order_id = market_result["result"].get("orderId", "") if market_result.get("result") else ""
 
-        print(f"[LOG] Зберігаю трейд у CSV: {order_id}, {symbol}, {side}, qty={qty}, TP={tp}, SL={sl}")
+        send_telegram_message(
+            f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}"
+        )
 
         log_trade_to_csv({
             "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
@@ -291,58 +205,30 @@ def webhook():
             "qty": qty,
             "entry_price": entry_price,
             "tp": tp,
-            "sl": sl,
+            "sl": actual_sl,
             "trailing": use_trailing,
             "order_id": order_id,
             "result": "pending",
             "pnl": ""
         })
 
-        send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
         return {"success": True}
-
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
 
-
-from flask import send_file
-import io
-from flask import send_file
-import io
-
-
-
-@app.route("/export-today-csv", methods=["GET"])
-def export_today_csv():
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
+def log_trade_to_csv(entry):
     try:
-        with open(CSV_LOG_PATH, mode="r", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            writer.writerow(reader.fieldnames)
-            for row in reader:
-                if row["timestamp"].startswith(today):
-                    writer.writerow([row[field] for field in reader.fieldnames])
+        file_exists = os.path.isfile(CSV_LOG_PATH)
+        with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
+            fieldnames = ["timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing", "order_id", "result", "pnl"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(entry)
     except Exception as e:
-        return {"error": f"CSV export error: {e}"}, 500
+        print(f"CSV log error: {e}")
 
-    output.seek(0)
-    return send_file(
-        io.BytesIO(output.getvalue().encode()),
-        mimetype="text/csv",
-        as_attachment=True,
-        download_name=f"trades_{today}.csv"
-    )
-@app.route("/send-csv", methods=["GET"])
-def send_csv():
-    send_csv_to_telegram()
-    return {"status": "CSV sent to Telegram"}
-
-
-# 🛠️ Автостворення CSV-файлу, якщо ще не існує
 if not os.path.exists(CSV_LOG_PATH):
     with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
