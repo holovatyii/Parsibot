@@ -53,6 +53,9 @@ def get_price(symbol):
     except Exception as e:
         print(f"❌ get_price() error: {e}")
         return None
+        def is_sl_valid(sl, price):
+    return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
+
 
 def is_tp_valid(tp, price):
     return abs(tp - price) / price <= MAX_TP_DISTANCE_PERC
@@ -94,11 +97,14 @@ def create_take_profit_order(symbol, side, qty, tp):
         url = f"{base_url}/v5/order/create"
         response = requests.post(url, data=body, headers=headers).json()
 
-        if response.get("retCode") == 0:
-            order_id = response["result"].get("orderId", "N/A")
-            send_telegram_message(f"🎯 TP створено ✅ ID: {order_id} (Limit)")
-        else:
-            send_telegram_message(f"❌ TP не створено\nПричина: {response.get('retMsg')} (retCode: {response.get('retCode')})")
+        ret_code = response.get("retCode")
+if ret_code == 0:
+    order_id = response["result"].get("orderId", "N/A")
+    send_telegram_message(f"🎯 TP створено ✅ ID: {order_id} (Limit)")
+elif ret_code == 110017:
+    send_telegram_message("⚠️ TP не створено: така позиція вже існує. Можливо, спроба створити reduce-only у напрямку активної позиції.")
+else:
+    send_telegram_message(f"❌ TP не створено\nПричина: {response.get('retMsg')} (retCode: {ret_code})")
 
         return response
     except Exception as e:
