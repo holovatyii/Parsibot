@@ -35,6 +35,20 @@ def send_telegram_message(message):
         requests.post(url, json=data)
     except Exception as e:
         print(f"Telegram Error: {e}")
+def send_csv_to_telegram():
+    try:
+        if not os.path.exists(CSV_LOG_PATH):
+            send_telegram_message("❌ CSV-файл не знайдено.")
+            return
+        with open(CSV_LOG_PATH, "rb") as file:
+            url = f"https://api.telegram.org/bot{telegram_token}/sendDocument"
+            data = {"chat_id": telegram_chat_id}
+            files = {"document": (CSV_LOG_PATH, file)}
+            response = requests.post(url, data=data, files=files)
+            if response.status_code != 200:
+                send_telegram_message(f"❌ Помилка відправки CSV: {response.text}")
+    except Exception as e:
+        send_telegram_message(f"🔥 Помилка при відправці CSV: {e}")
 
 def sign_request(api_key, api_secret, body, timestamp):
     param_str = f"{timestamp}{api_key}5000{body}"
@@ -280,6 +294,10 @@ def export_today_csv():
         as_attachment=True,
         download_name=f"trades_{today}.csv"
     )
+@app.route("/send-csv", methods=["GET"])
+def send_csv():
+    send_csv_to_telegram()
+    return {"status": "CSV sent to Telegram"}
 
 
 # 🛠️ Автостворення CSV-файлу, якщо ще не існує
