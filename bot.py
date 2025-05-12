@@ -320,6 +320,105 @@ def export_today_csv():
         download_name=f"trades_last_24h.csv"
     )
 
+# ✅ Додано автоматичний трекер відкритих трейдів
+
+import threading
+import json
+
+OPEN_TRADES_PATH = "open_trades.json"
+
+# 🧾 Зберігати трейд у окремий JSON-файл
+
+def save_open_trade(entry):
+    try:
+        if os.path.exists(OPEN_TRADES_PATH):
+            with open(OPEN_TRADES_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = []
+        data.append(entry)
+        with open(OPEN_TRADES_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"❌ open_trades.json save error: {e}")
+
+# 🔁 Оновити trades.csv
+
+def update_csv_trade(order_id, updates):
+    try:
+        rows = []
+        updated = False
+        with open(CSV_LOG_PATH, mode="r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            for row in reader:
+                if row["order_id"] == order_id:
+                    row.update(updates)
+                    updated = True
+                rows.append(row)
+        if updated:
+            with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+            print(f"✅ CSV оновлено для {order_id}: {updates}")
+    except Exception as e:
+        print(f"❌ CSV update error: {e}")
+
+# 🔁 Background-перевірка відкритих трейдів
+
+def track_open_trades():
+    while True:
+        try:
+            if not os.path.exists(OPEN_TRADES_PATH):
+                time.sleep(30)
+                continue
+            with open(OPEN_TRADES_PATH, "r", encoding="utf-8") as f:
+                trades = json.load(f)
+            remaining = []
+            for trade in trades:
+                order_id = trade["order_id"]
+                symbol = trade["symbol"]
+                side = trade["side"]
+                entry_price = float(trade["entry_price"])
+                tp = float(trade["tp"])
+                sl = float(trade["sl"])
+                ts = datetime.strptime(trade["timestamp"], "%Y-%m-%d %H:%M:%S")
+                qty = float(trade["qty"])
+
+                # 🔍 Запит до Bybit (отримати статус позиції / ордерів)
+                # ⚠️ Тут треба вставити API-запит до /v5/position/list або order/history
+                # 🔧 Тимчасово емулюємо, що всі закрились вручну через 90 сек
+
+                runtime = (datetime.utcnow() - ts).total_seconds()
+                if runtime < 90:
+                    remaining.append(trade)
+                    continue
+
+                exit_price = entry_price * (0.99 if side == "Buy" else 1.01)
+                tp_hit = exit_price == tp
+                sl_hit = exit_price == sl
+                pnl = round((entry_price - exit_price) * qty * (-1 if side == "Sell" else 1), 2)
+                exit_reason = "tp_hit" if tp_hit else "sl_hit" if sl_hit else "timeout"
+
+                update_csv_trade(order_id, {
+                    "exit_price": exit_price,
+                    "exit_reason": exit_reason,
+                    "tp_hit": tp_hit,
+                    "sl_hit": sl_hit,
+                    "runtime_sec": int(runtime),
+                    "pnl": pnl,
+                    "result": "closed"
+                })
+            with open(OPEN_TRADES_PATH, "w", encoding="utf-8") as f:
+                json.dump(remaining, f, indent=2)
+        except Exception as e:
+            print(f"❌ Track error: {e}")
+        time.sleep(30)
+
+# 🧠 Запуск моніторингу в окремому потоці
+
+threading.Thread(target=track_open_trades, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
