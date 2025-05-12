@@ -53,9 +53,8 @@ def get_price(symbol):
     except Exception as e:
         print(f"❌ get_price() error: {e}")
         return None
-       def is_sl_valid(sl, price):
+def is_sl_valid(sl, price):
     return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
-
 
 def is_tp_valid(tp, price):
     return abs(tp - price) / price <= MAX_TP_DISTANCE_PERC
