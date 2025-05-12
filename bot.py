@@ -245,32 +245,38 @@ def webhook():
         sl_result = create_stop_loss_order(symbol, side, qty, sl)
         trailing_result = create_trailing_stop(symbol, side, callback) if use_trailing else None
 
+        # Безпечне витягування order_id
         order_id = ""
-if market_result.get("result"):
-    order_id = market_result["result"].get("orderId", "")
+        try:
+            if market_result.get("result"):
+                order_id = market_result["result"].get("orderId", "")
+        except Exception as e:
+            print(f"[ERROR] Failed to extract orderId: {e}")
+            order_id = ""
 
-print(f"[LOG] Зберігаю трейд у CSV: {order_id}, {symbol}, {side}, qty={qty}, TP={tp}, SL={sl}")
+        print(f"[LOG] Зберігаю трейд у CSV: {order_id}, {symbol}, {side}, qty={qty}, TP={tp}, SL={sl}")
 
-log_trade_to_csv({
-    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-    "symbol": symbol,
-    "side": side,
-    "qty": qty,
-    "entry_price": entry_price,
-    "tp": tp,
-    "sl": sl,
-    "trailing": use_trailing,
-    "order_id": order_id,
-    "result": "pending",
-    "pnl": ""
-})
-
+        log_trade_to_csv({
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "symbol": symbol,
+            "side": side,
+            "qty": qty,
+            "entry_price": entry_price,
+            "tp": tp,
+            "sl": sl,
+            "trailing": use_trailing,
+            "order_id": order_id,
+            "result": "pending",
+            "pnl": ""
+        })
 
         send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {sl}")
         return {"success": True}
+
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
+
 from flask import send_file
 import io
 from flask import send_file
