@@ -261,19 +261,26 @@ def log_trade_to_csv(entry):
     try:
         file_exists = os.path.isfile(CSV_LOG_PATH)
         with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
-            fieldnames = ["timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing", "order_id", "result", "pnl"]
+            fieldnames = [
+                "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
+                "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
+                "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
+                "strategy_tag", "signal_source"
+            ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
+
+            # Заповнюємо пропущені поля за замовчуванням
+            for field in fieldnames:
+                if field not in entry:
+                    entry[field] = None
+
             writer.writerow(entry)
         print(f"✅ CSV запис: {entry}")
     except Exception as e:
         print(f"❌ CSV log error: {e}")
-
-if not os.path.exists(CSV_LOG_PATH):
-    with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing", "order_id", "result", "pnl"])
+        
 @app.route("/export-today-csv", methods=["GET"])
 def export_today_csv():
     output = io.StringIO()
