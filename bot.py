@@ -235,7 +235,7 @@ def webhook():
         )
         print("⚙️ Викликаємо log_trade_to_csv...")
 
-log_trade_to_csv({
+        log_trade_to_csv({
     "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
     "symbol": symbol,
     "side": side,
