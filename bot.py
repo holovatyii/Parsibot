@@ -158,6 +158,36 @@ def create_stop_loss_order(symbol, side, qty, sl):
     except Exception as e:
         send_telegram_message(f"❌ Помилка при створенні SL: {e}")
         return None
+def create_trailing_stop(symbol, side, callback_rate):
+    try:
+        position_idx = 0
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        order_data = {
+            "category": "linear",
+            "symbol": symbol,
+            "trailingStop": str(callback_rate),
+            "positionIdx": position_idx
+        }
+        body = json.dumps(order_data)
+        sign = sign_request(api_key, api_secret, body, timestamp)
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+        url = f"{base_url}/v5/position/trading-stop"
+        response = requests.post(url, data=body, headers=headers)
+        res_data = response.json()
+        send_telegram_message(f"🧾 Trailing SL Order (response):\n{json.dumps(res_data, indent=2)}")
+        return res_data
+    except Exception as e:
+        error_text = f"❌ Trailing SL error: {e}"
+        print(error_text)
+        send_telegram_message(error_text)
+        return None
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -226,8 +256,9 @@ def log_trade_to_csv(entry):
             if not file_exists:
                 writer.writeheader()
             writer.writerow(entry)
+        print(f"✅ CSV запис: {entry}")
     except Exception as e:
-        print(f"CSV log error: {e}")
+        print(f"❌ CSV log error: {e}")
 
 if not os.path.exists(CSV_LOG_PATH):
     with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
