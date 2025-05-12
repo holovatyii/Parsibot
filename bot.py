@@ -248,7 +248,8 @@ def webhook():
             "pnl": ""
         })
 
-        return {"success": True"}
+        return {"success": True}
+
 
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
