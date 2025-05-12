@@ -235,19 +235,31 @@ def webhook():
         )
         print("⚙️ Викликаємо log_trade_to_csv...")
 
-        log_trade_to_csv({
-            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-            "symbol": symbol,
-            "side": side,
-            "qty": qty,
-            "entry_price": entry_price,
-            "tp": tp,
-            "sl": actual_sl,
-            "trailing": use_trailing,
-            "order_id": order_id,
-            "result": "pending",
-            "pnl": ""
-        })
+log_trade_to_csv({
+    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+    "symbol": symbol,
+    "side": side,
+    "qty": qty,
+    "entry_price": entry_price,
+    "tp": tp,
+    "sl": actual_sl,
+    "trailing": use_trailing,
+    "order_id": order_id,
+    "result": "pending",
+    "pnl": "",
+    "exit_price": None,
+    "exit_reason": None,
+    "tp_hit": None,
+    "sl_hit": None,
+    "runtime_sec": None,
+    "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
+    "tp_rejected": tp_result is None,
+    "drawdown_pct": None,
+    "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
+    "strategy_tag": "tv_default",
+    "signal_source": "TradingView"
+})
+
 
         return {"success": True}
 
