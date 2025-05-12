@@ -283,7 +283,8 @@ def export_today_csv():
             reader = csv.DictReader(csvfile)
             writer.writerow(reader.fieldnames)
             for row in reader:
-                if row["timestamp"].startswith(today):
+                ts = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+if (datetime.utcnow() - ts).total_seconds() <= 86400:
                     writer.writerow([row[field] for field in reader.fieldnames])
     except Exception as e:
         return {"error": f"CSV export error: {e}"}, 500
