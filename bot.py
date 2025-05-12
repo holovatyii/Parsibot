@@ -252,6 +252,32 @@ def webhook():
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
+from flask import send_file
+import io
+
+@app.route("/export-today-csv", methods=["GET"])
+def export_today_csv():
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    try:
+        with open(CSV_LOG_PATH, mode="r", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            writer.writerow(reader.fieldnames)
+            for row in reader:
+                if row["timestamp"].startswith(today):
+                    writer.writerow([row[field] for field in reader.fieldnames])
+    except Exception as e:
+        return {"error": f"CSV export error: {e}"}, 500
+
+    output.seek(0)
+    return send_file(
+        io.BytesIO(output.getvalue().encode()),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=f"trades_{today}.csv"
+    )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
