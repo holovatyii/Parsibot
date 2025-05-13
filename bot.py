@@ -83,7 +83,7 @@ def cancel_all_close_orders(symbol):
         orders = data["result"].get("list", [])
         count = 0
         for order in orders:
-            if order.get("reduceOnly") and order.get("symbol") == symbol:
+            if order.get("symbol") == symbol and order.get("orderId"):
                 order_id = order.get("orderId")
                 cancel_timestamp = str(int(time.time() * 1000))
                 cancel_body = json.dumps({
