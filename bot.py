@@ -80,32 +80,33 @@ def cancel_all_close_orders(symbol):
             send_telegram_message(f"❌ Не вдалось отримати ордери: {data}")
             return
 
-        orders = data["result"].get("list", [])
-        print("📦 Всі ордери з /realtime:")
+       orders = data["result"].get("list", [])
+print("📦 Всі ордери з /realtime:")
 for o in orders:
     print(json.dumps(o, indent=2))
-        count = 0
-        for order in orders:
-            if order.get("symbol") == symbol and order.get("orderId"):
-                order_id = order.get("orderId")
-                cancel_timestamp = str(int(time.time() * 1000))
-                cancel_body = json.dumps({
-                    "category": "linear",
-                    "orderId": order_id
-                })
-                cancel_sign = sign_request(api_key, api_secret, cancel_body, cancel_timestamp)
-                cancel_headers = {
-                    "X-BAPI-API-KEY": api_key,
-                    "X-BAPI-SIGN": cancel_sign,
-                    "X-BAPI-TIMESTAMP": cancel_timestamp,
-                    "X-BAPI-RECV-WINDOW": "5000",
-                    "Content-Type": "application/json"
-                }
-                cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
-                print(f"🧹 Canceled: {order_id} → {cancel_response.json()}")
-                count += 1
 
-        send_telegram_message(f"🧹 Скасовано {count} старих TP/SL ордерів для {symbol}")
+count = 0
+for order in orders:
+    if order.get("symbol") == symbol and order.get("orderId"):
+        order_id = order.get("orderId")
+        cancel_timestamp = str(int(time.time() * 1000))
+        cancel_body = json.dumps({
+            "category": "linear",
+            "orderId": order_id
+        })
+        cancel_sign = sign_request(api_key, api_secret, cancel_body, cancel_timestamp)
+        cancel_headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": cancel_sign,
+            "X-BAPI-TIMESTAMP": cancel_timestamp,
+            "X-BAPI-RECV-WINDOW": "5000",
+            "Content-Type": "application/json"
+        }
+        cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
+        print(f"🧹 Canceled: {order_id} → {cancel_response.json()}")
+        count += 1
+
+     send_telegram_message(f"🧹 Скасовано {count} старих TP/SL ордерів для {symbol}")
     except Exception as e:
         send_telegram_message(f"❌ cancel_all_close_orders error: {e}")
         print(f"❌ cancel_all_close_orders error: {e}")
