@@ -51,12 +51,13 @@ def cancel_all_close_orders(symbol):
     try:
         timestamp = str(int(time.time() * 1000))
 
-        # ✅ Параметри для підпису запиту
+        # 🔧 Параметри для GET запиту
         params = {
             "api_key": api_key,
             "timestamp": timestamp,
             "symbol": symbol,
-            "category": "linear"
+            "category": "linear",
+            "openOnly": "1"
         }
 
         # 🔐 Підписуємо query string
@@ -68,23 +69,19 @@ def cancel_all_close_orders(symbol):
         ).hexdigest()
         params["sign"] = sign
 
-        # 📡 GET-запит на Bybit
-        response = requests.get(f"{base_url}/v5/order/realtime", params=params)
+        # 📡 GET запит до /v5/order/list
+        response = requests.get(f"{base_url}/v5/order/list", params=params)
         data = response.json()
 
-        print(f"🔍 Orders GET response:\n{json.dumps(data, indent=2)}")
+        print(f"📦 /v5/order/list response:\n{json.dumps(data, indent=2)}")
 
         if data.get("retCode") != 0:
-            send_telegram_message(f"❌ Не вдалось отримати ордери: {data}")
+            send_telegram_message(f"❌ Не вдалось отримати ордери через /list: {data}")
             return
 
         orders = data["result"].get("list", [])
-
-        print("📦 Всі ордери з /realtime:")
-        for o in orders:
-            print(json.dumps(o, indent=2))
-
         count = 0
+
         for order in orders:
             if order.get("symbol") == symbol and order.get("orderId"):
                 order_id = order.get("orderId")
@@ -101,15 +98,11 @@ def cancel_all_close_orders(symbol):
                     "X-BAPI-RECV-WINDOW": "5000",
                     "Content-Type": "application/json"
                 }
-                cancel_response = requests.post(
-                    f"{base_url}/v5/order/cancel",
-                    data=cancel_body,
-                    headers=cancel_headers
-                )
+                cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
                 print(f"🧹 Canceled: {order_id} → {cancel_response.json()}")
                 count += 1
 
-        send_telegram_message(f"🧹 Скасовано {count} старих TP/SL ордерів для {symbol}")
+        send_telegram_message(f"🧹 Скасовано {count} ордерів через /list для {symbol}")
 
     except Exception as e:
         send_telegram_message(f"❌ cancel_all_close_orders error: {e}")
