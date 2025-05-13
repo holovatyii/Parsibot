@@ -219,6 +219,19 @@ def webhook():
 
         # Створення TP/SL/Trailing
         tp_result = create_take_profit_order(symbol, side, qty, tp)
+        # fallback, якщо TP не створено
+fallback_tp_pct = 0.02  # fallback TP = +2%
+fallback_tp_set = False
+
+if tp_result is None:
+    fallback_tp_set = True
+    fallback_tp = round(entry_price * (1 + fallback_tp_pct), 2) if side == "Buy" else round(entry_price * (1 - fallback_tp_pct), 2)
+
+    tp_result = create_take_profit_order(symbol, side, qty, fallback_tp)
+    tp = fallback_tp  # оновлюємо TP для логування
+
+    send_telegram_message(f"⚠️ TP не створено — fallback TP виставлено @ {tp}")
+
         sl_result = create_stop_loss_order(symbol, side, qty, actual_sl)
 
         trailing_result = None
@@ -254,7 +267,7 @@ def webhook():
             "sl_hit": None,
             "runtime_sec": None,
             "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
-            "tp_rejected": tp_result is None,
+            "tp_rejected": fallback_tp_set,
             "drawdown_pct": None,
             "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
             "strategy_tag": "tv_default",
