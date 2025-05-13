@@ -206,6 +206,39 @@ def webhook():
 
         entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
+       order_id = market_result["result"].get("orderId", "") if market_result.get("result") else ""
+       entry_price = get_price(symbol)
+       actual_sl = sl
+       price = get_price(symbol)
+if not is_sl_valid(sl, price):
+    actual_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
+
+log_trade_to_csv({
+    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+    "symbol": symbol,
+    "side": side,
+    "qty": qty,
+    "entry_price": entry_price,
+    "tp": tp,
+    "sl": actual_sl,
+    "trailing": use_trailing,
+    "order_id": order_id,
+    "result": "pending",
+    "pnl": "",
+    "exit_price": None,
+    "exit_reason": None,
+    "tp_hit": None,
+    "sl_hit": None,
+    "runtime_sec": None,
+    "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
+    "tp_rejected": tp_result is None,
+    "drawdown_pct": None,
+    "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
+    "strategy_tag": "tv_default",
+    "signal_source": "TradingView"
+})
+
+save_open_trade(...)  # не забудь додати аналогічно
 
         if debug_responses:
             send_telegram_message(f"🧾 Market Order:\n{json.dumps(market_result, indent=2)}")
