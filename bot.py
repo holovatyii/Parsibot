@@ -81,6 +81,9 @@ def cancel_all_close_orders(symbol):
             return
 
         orders = data["result"].get("list", [])
+        print("📦 Всі ордери з /realtime:")
+for o in orders:
+    print(json.dumps(o, indent=2))
         count = 0
         for order in orders:
             if order.get("symbol") == symbol and order.get("orderId"):
