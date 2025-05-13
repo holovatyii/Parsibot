@@ -47,6 +47,7 @@ def sign_request(api_key, api_secret, body, timestamp):
     return hmac.new(bytes(api_secret, "utf-8"), msg=bytes(param_str, "utf-8"), digestmod=hashlib.sha256).hexdigest()
 def cancel_all_close_orders(symbol):
     try:
+        print(f"📡 Спроба скасування умовних ордерів для {symbol}")
         timestamp = str(int(time.time() * 1000))
         params = {
             "api_key": api_key,
@@ -62,16 +63,21 @@ def cancel_all_close_orders(symbol):
             "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
+
         response = requests.get(f"{base_url}/v5/order/realtime", params=params, headers=headers)
         data = response.json()
+
+        print(f"🔎 Відповідь на отримання ордерів: {data}")
         if data.get("retCode") != 0:
-            print(f"❌ Get conditional orders error: {data}")
+            send_telegram_message(f"❌ Не вдалось отримати ордери: {data}")
             return
 
         orders = data["result"].get("list", [])
+        count = 0
         for order in orders:
             if order.get("reduceOnly") and order.get("symbol") == symbol:
                 order_id = order.get("orderId")
+                print(f"🧹 Видалення ордеру: {order_id}")
                 cancel_timestamp = str(int(time.time() * 1000))
                 cancel_body = json.dumps({
                     "category": "linear",
@@ -86,9 +92,12 @@ def cancel_all_close_orders(symbol):
                     "Content-Type": "application/json"
                 }
                 cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
-                print(f"🧹 Canceled conditional: {order_id} → {cancel_response.json()}")
+                print(f"✅ Скасовано: {order_id} → {cancel_response.json()}")
+                count += 1
+
+        send_telegram_message(f"🧹 Скасовано {count} старих TP/SL ордерів для {symbol}")
     except Exception as e:
-        print(f"❌ cancel_all_close_orders error: {e}")
+        send_telegram_message(f"❌ Помилка в cancel_all_close_orders: {e}")
 
 def get_price(symbol):
     try:
