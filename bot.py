@@ -50,20 +50,31 @@ def sign_request(api_key, api_secret, body, timestamp):
 def cancel_all_close_orders(symbol):
     try:
         timestamp = str(int(time.time() * 1000))
-        # 🔐 Підпис формується вручну як query string (без body!)
-        query_str = f"api_key={api_key}&timestamp={timestamp}&symbol={symbol}&category=linear"
+
+        # ✅ Правильна генерація query string для GET-запиту
+        params = {
+            "api_key": api_key,
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "category": "linear"
+        }
+
+        # 🔐 Підписуємо саме query string (відсортований!)
+        query_string = "&".join([f"{k}={params[k]}" for k in sorted(params)])
         sign = hmac.new(
             bytes(api_secret, "utf-8"),
-            msg=bytes(query_str, "utf-8"),
+            msg=bytes(query_string, "utf-8"),
             digestmod=hashlib.sha256
         ).hexdigest()
 
-        # 🔗 Формуємо повний URL з підписом
-        url = f"{base_url}/v5/order/realtime?{query_str}&sign={sign}"
-        response = requests.get(url)
+        # Додаємо sign до параметрів
+        params["sign"] = sign
+
+        # 🔗 Надсилаємо GET-запит
+        response = requests.get(f"{base_url}/v5/order/realtime", params=params)
         data = response.json()
 
-        print(f"🔎 Cancel: realtime orders response:\n{json.dumps(data, indent=2)}")
+        print(f"🔍 Orders GET response:\n{json.dumps(data, indent=2)}")
 
         if data.get("retCode") != 0:
             send_telegram_message(f"❌ Не вдалось отримати ордери: {data}")
@@ -95,6 +106,7 @@ def cancel_all_close_orders(symbol):
     except Exception as e:
         send_telegram_message(f"❌ cancel_all_close_orders error: {e}")
         print(f"❌ cancel_all_close_orders error: {e}")
+
 
 
 def get_price(symbol):
