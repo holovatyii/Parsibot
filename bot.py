@@ -217,23 +217,24 @@ def webhook():
         if not is_sl_valid(sl, price):
             actual_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
 
-        # Створення TP/SL/Trailing
+        # Створення TP
         tp_result = create_take_profit_order(symbol, side, qty, tp)
+
         # fallback, якщо TP не створено
-fallback_tp_pct = 0.02  # fallback TP = +2%
-fallback_tp_set = False
+        fallback_tp_pct = 0.02  # fallback TP = +2%
+        fallback_tp_set = False
 
-if tp_result is None:
-    fallback_tp_set = True
-    fallback_tp = round(entry_price * (1 + fallback_tp_pct), 2) if side == "Buy" else round(entry_price * (1 - fallback_tp_pct), 2)
+        if tp_result is None:
+            fallback_tp_set = True
+            fallback_tp = round(entry_price * (1 + fallback_tp_pct), 2) if side == "Buy" else round(entry_price * (1 - fallback_tp_pct), 2)
+            tp_result = create_take_profit_order(symbol, side, qty, fallback_tp)
+            tp = fallback_tp  # оновлюємо TP для логування
+            send_telegram_message(f"⚠️ TP не створено — fallback TP виставлено @ {tp}")
 
-    tp_result = create_take_profit_order(symbol, side, qty, fallback_tp)
-    tp = fallback_tp  # оновлюємо TP для логування
-
-    send_telegram_message(f"⚠️ TP не створено — fallback TP виставлено @ {tp}")
-
+        # Створення SL
         sl_result = create_stop_loss_order(symbol, side, qty, actual_sl)
 
+        # Trailing Stop
         trailing_result = None
         if use_trailing:
             trailing_result = create_trailing_stop(symbol, side, callback)
@@ -274,7 +275,7 @@ if tp_result is None:
             "signal_source": "TradingView"
         })
 
-        save_open_trade({  # заповни ці поля так само, як у log_trade_to_csv
+        save_open_trade({
             "symbol": symbol,
             "order_id": order_id,
             "entry_price": entry_price,
