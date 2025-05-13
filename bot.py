@@ -51,7 +51,7 @@ def cancel_all_close_orders(symbol):
     try:
         timestamp = str(int(time.time() * 1000))
 
-        # 🔧 Параметри для GET запиту
+        # 📦 Параметри для GET /v5/order/list
         params = {
             "api_key": api_key,
             "timestamp": timestamp,
@@ -60,7 +60,7 @@ def cancel_all_close_orders(symbol):
             "openOnly": "1"
         }
 
-        # 🔐 Підписуємо query string
+        # 🔐 Підписуємо запит
         query_string = "&".join([f"{k}={params[k]}" for k in sorted(params)])
         sign = hmac.new(
             bytes(api_secret, "utf-8"),
@@ -69,10 +69,17 @@ def cancel_all_close_orders(symbol):
         ).hexdigest()
         params["sign"] = sign
 
-        # 📡 GET запит до /v5/order/list
+        # 🔗 Відправляємо запит
         response = requests.get(f"{base_url}/v5/order/list", params=params)
-        data = response.json()
 
+        # 🛡 Перевірка типу відповіді
+        if "application/json" not in response.headers.get("Content-Type", ""):
+            print("❌ Unexpected response:")
+            print(response.text)
+            send_telegram_message("❌ cancel_all_close_orders error: Non-JSON response from Bybit")
+            return
+
+        data = response.json()
         print(f"📦 /v5/order/list response:\n{json.dumps(data, indent=2)}")
 
         if data.get("retCode") != 0:
@@ -84,7 +91,7 @@ def cancel_all_close_orders(symbol):
 
         for order in orders:
             if order.get("symbol") == symbol and order.get("orderId"):
-                order_id = order.get("orderId")
+                order_id = order["orderId"]
                 cancel_timestamp = str(int(time.time() * 1000))
                 cancel_body = json.dumps({
                     "category": "linear",
@@ -107,6 +114,7 @@ def cancel_all_close_orders(symbol):
     except Exception as e:
         send_telegram_message(f"❌ cancel_all_close_orders error: {e}")
         print(f"❌ cancel_all_close_orders error: {e}")
+
 
 def get_price(symbol):
     try:
