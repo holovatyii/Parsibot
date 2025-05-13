@@ -49,27 +49,22 @@ def sign_request(api_key, api_secret, body, timestamp):
     return hmac.new(bytes(api_secret, "utf-8"), msg=bytes(param_str, "utf-8"), digestmod=hashlib.sha256).hexdigest()
 def cancel_all_close_orders(symbol):
     try:
-        print(f"📡 Спроба скасування умовних ордерів для {symbol}")
         timestamp = str(int(time.time() * 1000))
-        params = {
-            "api_key": api_key,
-            "timestamp": timestamp,
-            "symbol": symbol,
-            "category": "linear"
-        }
-        sign = sign_request(api_key, api_secret, "", timestamp)
-        headers = {
-            "X-BAPI-API-KEY": api_key,
-            "X-BAPI-SIGN": sign,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": "5000",
-            "Content-Type": "application/json"
-        }
+        # 🔐 Підпис формується вручну як query string (без body!)
+        query_str = f"api_key={api_key}&timestamp={timestamp}&symbol={symbol}&category=linear"
+        sign = hmac.new(
+            bytes(api_secret, "utf-8"),
+            msg=bytes(query_str, "utf-8"),
+            digestmod=hashlib.sha256
+        ).hexdigest()
 
-        response = requests.get(f"{base_url}/v5/order/realtime", params=params, headers=headers)
+        # 🔗 Формуємо повний URL з підписом
+        url = f"{base_url}/v5/order/realtime?{query_str}&sign={sign}"
+        response = requests.get(url)
         data = response.json()
 
-        print(f"🔎 Відповідь на отримання ордерів: {data}")
+        print(f"🔎 Cancel: realtime orders response:\n{json.dumps(data, indent=2)}")
+
         if data.get("retCode") != 0:
             send_telegram_message(f"❌ Не вдалось отримати ордери: {data}")
             return
@@ -79,7 +74,6 @@ def cancel_all_close_orders(symbol):
         for order in orders:
             if order.get("reduceOnly") and order.get("symbol") == symbol:
                 order_id = order.get("orderId")
-                print(f"🧹 Видалення ордеру: {order_id}")
                 cancel_timestamp = str(int(time.time() * 1000))
                 cancel_body = json.dumps({
                     "category": "linear",
@@ -94,12 +88,14 @@ def cancel_all_close_orders(symbol):
                     "Content-Type": "application/json"
                 }
                 cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
-                print(f"✅ Скасовано: {order_id} → {cancel_response.json()}")
+                print(f"🧹 Canceled: {order_id} → {cancel_response.json()}")
                 count += 1
 
         send_telegram_message(f"🧹 Скасовано {count} старих TP/SL ордерів для {symbol}")
     except Exception as e:
-        send_telegram_message(f"❌ Помилка в cancel_all_close_orders: {e}")
+        send_telegram_message(f"❌ cancel_all_close_orders error: {e}")
+        print(f"❌ cancel_all_close_orders error: {e}")
+
 
 def get_price(symbol):
     try:
