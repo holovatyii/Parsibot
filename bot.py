@@ -24,7 +24,9 @@ debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
 
 MAX_SL_DISTANCE_PERC = 0.07
-CSV_LOG_PATH = "trades.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_LOG_PATH = os.path.join(BASE_DIR, "trades.csv")
+
 
 app = Flask(__name__)
 
@@ -357,18 +359,21 @@ def log_trade_to_csv(entry):
                 "strategy_tag", "signal_source"
             ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
             if not file_exists:
                 writer.writeheader()
 
-            # Заповнюємо пропущені поля за замовчуванням
             for field in fieldnames:
                 if field not in entry:
                     entry[field] = None
 
             writer.writerow(entry)
+
         print(f"✅ CSV запис: {entry}")
     except Exception as e:
         print(f"❌ CSV log error: {e}")
+        send_telegram_message(f"❌ CSV log error: {e}")
+
         
 @app.route("/export-today-csv", methods=["GET"])
 def export_today_csv():
