@@ -45,6 +45,50 @@ def is_sl_valid(sl, price):
 def sign_request(api_key, api_secret, body, timestamp):
     param_str = f"{timestamp}{api_key}5000{body}"
     return hmac.new(bytes(api_secret, "utf-8"), msg=bytes(param_str, "utf-8"), digestmod=hashlib.sha256).hexdigest()
+def cancel_all_close_orders(symbol):
+    try:
+        timestamp = str(int(time.time() * 1000))
+        params = {
+            "api_key": api_key,
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "category": "linear"
+        }
+        sign = sign_request(api_key, api_secret, "", timestamp)
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-SIGN": sign,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": "5000",
+            "Content-Type": "application/json"
+        }
+        response = requests.get(f"{base_url}/v5/order/realtime", params=params, headers=headers)
+        data = response.json()
+        if data.get("retCode") != 0:
+            print(f"❌ Get conditional orders error: {data}")
+            return
+
+        orders = data["result"].get("list", [])
+        for order in orders:
+            if order.get("reduceOnly") and order.get("symbol") == symbol:
+                order_id = order.get("orderId")
+                cancel_timestamp = str(int(time.time() * 1000))
+                cancel_body = json.dumps({
+                    "category": "linear",
+                    "orderId": order_id
+                })
+                cancel_sign = sign_request(api_key, api_secret, cancel_body, cancel_timestamp)
+                cancel_headers = {
+                    "X-BAPI-API-KEY": api_key,
+                    "X-BAPI-SIGN": cancel_sign,
+                    "X-BAPI-TIMESTAMP": cancel_timestamp,
+                    "X-BAPI-RECV-WINDOW": "5000",
+                    "Content-Type": "application/json"
+                }
+                cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
+                print(f"🧹 Canceled conditional: {order_id} → {cancel_response.json()}")
+    except Exception as e:
+        print(f"❌ cancel_all_close_orders error: {e}")
 
 def get_price(symbol):
     try:
@@ -203,6 +247,7 @@ def webhook():
         sl = float(data.get("sl"))
         use_trailing = data.get("trailing", False)
         callback = float(data.get("callback", 0.75))
+        cancel_all_close_orders(symbol)
 
         entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
