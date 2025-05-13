@@ -206,49 +206,20 @@ def webhook():
 
         entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
-       order_id = market_result["result"].get("orderId", "") if market_result.get("result") else ""
-       entry_price = get_price(symbol)
-       actual_sl = sl
-       price = get_price(symbol)
-if not is_sl_valid(sl, price):
-    actual_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
-
-log_trade_to_csv({
-    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-    "symbol": symbol,
-    "side": side,
-    "qty": qty,
-    "entry_price": entry_price,
-    "tp": tp,
-    "sl": actual_sl,
-    "trailing": use_trailing,
-    "order_id": order_id,
-    "result": "pending",
-    "pnl": "",
-    "exit_price": None,
-    "exit_reason": None,
-    "tp_hit": None,
-    "sl_hit": None,
-    "runtime_sec": None,
-    "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
-    "tp_rejected": tp_result is None,
-    "drawdown_pct": None,
-    "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
-    "strategy_tag": "tv_default",
-    "signal_source": "TradingView"
-})
-
-save_open_trade(...)  # не забудь додати аналогічно
-
-        if debug_responses:
-            send_telegram_message(f"🧾 Market Order:\n{json.dumps(market_result, indent=2)}")
 
         if not market_result or market_result.get("retCode") != 0:
             send_telegram_message(f"❌ Market ордер не створено: {market_result}")
             return {"error": "Market order failed"}, 400
 
+        order_id = market_result["result"].get("orderId", "") if market_result.get("result") else ""
+        price = get_price(symbol)
+        actual_sl = sl
+        if not is_sl_valid(sl, price):
+            actual_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
+
+        # Створення TP/SL/Trailing
         tp_result = create_take_profit_order(symbol, side, qty, tp)
-        sl_result = create_stop_loss_order(symbol, side, qty, sl)
+        sl_result = create_stop_loss_order(symbol, side, qty, actual_sl)
 
         trailing_result = None
         if use_trailing:
@@ -256,46 +227,51 @@ save_open_trade(...)  # не забудь додати аналогічно
             if debug_responses and trailing_result:
                 send_telegram_message(f"🧾 Trailing SL Order:\n{json.dumps(trailing_result, indent=2)}")
 
-        actual_sl = sl
-        price = get_price(symbol)
-        if not is_sl_valid(sl, price):
-            actual_sl = round(price * (1 - MAX_SL_DISTANCE_PERC), 2) if side == "Buy" else round(price * (1 + MAX_SL_DISTANCE_PERC), 2)
-
-        order_id = market_result["result"].get("orderId", "") if market_result.get("result") else ""
+        if debug_responses:
+            send_telegram_message(f"🧾 Market Order:\n{json.dumps(market_result, indent=2)}")
 
         send_telegram_message(
             f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}"
         )
+
         print("⚙️ Викликаємо log_trade_to_csv...")
 
         log_trade_to_csv({
-    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-    "symbol": symbol,
-    "side": side,
-    "qty": qty,
-    "entry_price": entry_price,
-    "tp": tp,
-    "sl": actual_sl,
-    "trailing": use_trailing,
-    "order_id": order_id,
-    "result": "pending",
-    "pnl": "",
-    "exit_price": None,
-    "exit_reason": None,
-    "tp_hit": None,
-    "sl_hit": None,
-    "runtime_sec": None,
-    "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
-    "tp_rejected": tp_result is None,
-    "drawdown_pct": None,
-    "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
-    "strategy_tag": "tv_default",
-    "signal_source": "TradingView"
-})
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "symbol": symbol,
+            "side": side,
+            "qty": qty,
+            "entry_price": entry_price,
+            "tp": tp,
+            "sl": actual_sl,
+            "trailing": use_trailing,
+            "order_id": order_id,
+            "result": "pending",
+            "pnl": "",
+            "exit_price": None,
+            "exit_reason": None,
+            "tp_hit": None,
+            "sl_hit": None,
+            "runtime_sec": None,
+            "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
+            "tp_rejected": tp_result is None,
+            "drawdown_pct": None,
+            "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
+            "strategy_tag": "tv_default",
+            "signal_source": "TradingView"
+        })
 
+        save_open_trade({  # заповни ці поля так само, як у log_trade_to_csv
+            "symbol": symbol,
+            "order_id": order_id,
+            "entry_price": entry_price,
+            "side": side,
+            "qty": qty,
+            "tp": tp,
+            "sl": actual_sl
+        })
 
         return {"success": True}
-
 
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
