@@ -321,7 +321,7 @@ def webhook():
 
         print("⚙️ Викликаємо log_trade_to_csv...")
 
-       log_trade({
+        log_trade({
     "symbol": symbol,
     "side": side,
     "qty": qty,
