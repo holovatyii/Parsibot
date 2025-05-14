@@ -493,6 +493,23 @@ def track_open_trades():
                     "pnl": pnl,
                     "result": "closed"
                 })
+                log_trade({
+    "symbol": symbol,
+    "side": side,
+    "qty": qty,
+    "entry_price": entry_price,
+    "tp": tp,
+    "sl": sl,
+    "strategy_tag": "tv_default"
+}, {"result": {"orderId": order_id}}, {
+    "exit_price": exit_price,
+    "exit_reason": exit_reason,
+    "tp_hit": tp_hit,
+    "sl_hit": sl_hit,
+    "runtime": int(runtime),
+    "pnl": pnl
+})
+
             with open(OPEN_TRADES_PATH, "w", encoding="utf-8") as f:
                 json.dump(remaining, f, indent=2)
         except Exception as e:
