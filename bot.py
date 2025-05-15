@@ -386,6 +386,8 @@ def log_trade_to_csv(entry):
             writer.writerow(entry)
 
         print(f"✅ CSV запис: {entry}")
+        send_telegram_message(f"✅ CSV запис: {entry['symbol']} {entry['side']} @ {entry['entry_price']}")
+
     except Exception as e:
         print(f"❌ CSV log error: {e}")
         send_telegram_message(f"❌ CSV log error: {e}")
