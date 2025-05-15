@@ -263,6 +263,7 @@ def create_trailing_stop(symbol, side, callback_rate):
 def webhook():
     try:
         data = request.get_json(force=True)
+        send_telegram_message(f"📥 Запит отримано: {data}")
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
 
