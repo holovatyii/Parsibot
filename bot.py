@@ -357,7 +357,7 @@ def webhook():
             "sl": actual_sl
         })
 
-        return {"success": True}
+        return {"success": True}, 200
 
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
