@@ -366,7 +366,19 @@ def webhook():
 
 def log_trade_to_csv(entry):
     try:
-        file_exists = os.path.isfile(CSV_LOG_PATH)
+        # Якщо файл не існує — створюємо з заголовками
+        if not os.path.exists(CSV_LOG_PATH):
+            with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
+                    "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
+                    "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
+                    "strategy_tag", "signal_source"
+                ])
+            print("📁 CSV файл створено автоматично")
+
+        # Запис трейду
         with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
             fieldnames = [
                 "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
@@ -376,9 +388,7 @@ def log_trade_to_csv(entry):
             ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-            if not file_exists:
-                writer.writeheader()
-
+            # Заповнюємо відсутні поля None
             for field in fieldnames:
                 if field not in entry:
                     entry[field] = None
@@ -391,6 +401,8 @@ def log_trade_to_csv(entry):
     except Exception as e:
         print(f"❌ CSV log error: {e}")
         send_telegram_message(f"❌ CSV log error: {e}")
+
+
 
         
 @app.route("/export-today-csv", methods=["GET"])
