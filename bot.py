@@ -292,15 +292,13 @@ def webhook():
         # Створення TP
         tp_result = create_take_profit_order(symbol, side, qty, tp)
 
-        # fallback, якщо TP не створено
-        fallback_tp_pct = 0.02  # fallback TP = +2%
+        fallback_tp_pct = 0.02
         fallback_tp_set = False
-
         if tp_result is None:
             fallback_tp_set = True
             fallback_tp = round(entry_price * (1 + fallback_tp_pct), 2) if side == "Buy" else round(entry_price * (1 - fallback_tp_pct), 2)
             tp_result = create_take_profit_order(symbol, side, qty, fallback_tp)
-            tp = fallback_tp  # оновлюємо TP для логування
+            tp = fallback_tp
             send_telegram_message(f"⚠️ TP не створено — fallback TP виставлено @ {tp}")
 
         # Створення SL
@@ -316,37 +314,36 @@ def webhook():
         if debug_responses:
             send_telegram_message(f"🧾 Market Order:\n{json.dumps(market_result, indent=2)}")
 
-        send_telegram_message(
-            f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}"
-        )
+        send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}")
 
-        print("⚙️ Викликаємо log_trade_to_csv...")
+        # Формуємо один об'єкт для обох логів
+        entry = {
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "symbol": symbol,
+            "side": side,
+            "qty": qty,
+            "entry_price": entry_price,
+            "tp": tp,
+            "sl": actual_sl,
+            "trailing": use_trailing,
+            "order_id": order_id,
+            "result": "pending",
+            "pnl": "",
+            "exit_price": None,
+            "exit_reason": None,
+            "tp_hit": None,
+            "sl_hit": None,
+            "runtime_sec": None,
+            "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
+            "tp_rejected": fallback_tp_set,
+            "drawdown_pct": None,
+            "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
+            "strategy_tag": "tv_default",
+            "signal_source": "TradingView"
+        }
 
-        log_trade_to_csv({
-    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-    "symbol": symbol,
-    "side": side,
-    "qty": qty,
-    "entry_price": entry_price,
-    "tp": tp,
-    "sl": actual_sl,
-    "trailing": use_trailing,
-    "order_id": order_id,
-    "result": "pending",
-    "pnl": "",
-    "exit_price": None,
-    "exit_reason": None,
-    "tp_hit": None,
-    "sl_hit": None,
-    "runtime_sec": None,
-    "sl_auto_adjusted": not is_sl_valid(sl, entry_price),
-    "tp_rejected": fallback_tp_set,
-    "drawdown_pct": None,
-    "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
-    "strategy_tag": "tv_default",
-    "signal_source": "TradingView"
-})
-
+        log_trade_to_csv(entry)
+        log_trade_to_sheets(entry)
 
         save_open_trade({
             "symbol": symbol,
@@ -363,45 +360,6 @@ def webhook():
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
-
-
-def log_trade_to_csv(entry):
-    try:
-        # Якщо файл не існує — створюємо з заголовками
-        if not os.path.exists(CSV_LOG_PATH):
-            with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([
-                    "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
-                    "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
-                    "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
-                    "strategy_tag", "signal_source"
-                ])
-            print("📁 CSV файл створено автоматично")
-
-        # Запис трейду
-        with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
-            fieldnames = [
-                "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
-                "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
-                "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
-                "strategy_tag", "signal_source"
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-            # Заповнюємо відсутні поля None
-            for field in fieldnames:
-                if field not in entry:
-                    entry[field] = None
-
-            writer.writerow(entry)
-
-        print(f"✅ CSV запис: {entry}")
-        send_telegram_message(f"✅ CSV запис: {entry['symbol']} {entry['side']} @ {entry['entry_price']}")
-
-    except Exception as e:
-        print(f"❌ CSV log error: {e}")
-        send_telegram_message(f"❌ CSV log error: {e}")
 
 
 
