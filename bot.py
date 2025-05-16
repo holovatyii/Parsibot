@@ -259,7 +259,7 @@ def create_trailing_stop(symbol, side, callback_rate):
         send_telegram_message(error_text)
         return None
         def log_trade_to_csv(entry):
-            try:
+    try:
         if not os.path.exists(CSV_LOG_PATH):
             with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -292,6 +292,8 @@ def create_trailing_stop(symbol, side, callback_rate):
     except Exception as e:
         print(f"❌ CSV log error: {e}")
         send_telegram_message(f"❌ CSV log error: {e}")
+
+        
 
 
 @app.route("/webhook", methods=["POST"])
