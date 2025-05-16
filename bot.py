@@ -258,7 +258,7 @@ def create_trailing_stop(symbol, side, callback_rate):
         print(error_text)
         send_telegram_message(error_text)
         return None
-        def log_trade_to_csv(entry):
+def log_trade_to_csv(entry):
     try:
         if not os.path.exists(CSV_LOG_PATH):
             with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
