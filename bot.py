@@ -316,7 +316,7 @@ def webhook():
 
         send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}")
 
-        # Формуємо один об'єкт для обох логів
+        # Формуємо один об'єкт для логів
         entry = {
             "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
             "symbol": symbol,
@@ -342,9 +342,11 @@ def webhook():
             "signal_source": "TradingView"
         }
 
+        # Запис у CSV + Google Sheet
         log_trade_to_csv(entry)
         log_trade_to_sheets(entry)
 
+        # Зберігаємо відкриту угоду
         save_open_trade({
             "symbol": symbol,
             "order_id": order_id,
