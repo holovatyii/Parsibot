@@ -292,6 +292,51 @@ def log_trade_to_csv(entry):
     except Exception as e:
         print(f"❌ CSV log error: {e}")
         send_telegram_message(f"❌ CSV log error: {e}")
+        import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+def log_trade_to_sheets(entry):
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+        client = gspread.authorize(creds)
+
+        sheet = client.open_by_key("1Cvx6wMflSe45vYhPCuVd79gY1vPkvK5tqN61uV2dQjs").sheet1
+
+        row = [
+            entry.get("timestamp"),
+            entry.get("symbol"),
+            entry.get("side"),
+            entry.get("qty"),
+            entry.get("entry_price"),
+            entry.get("tp"),
+            entry.get("sl"),
+            entry.get("trailing"),
+            entry.get("order_id"),
+            entry.get("result"),
+            entry.get("pnl"),
+            entry.get("exit_price"),
+            entry.get("exit_reason"),
+            entry.get("tp_hit"),
+            entry.get("sl_hit"),
+            entry.get("runtime_sec"),
+            entry.get("sl_auto_adjusted"),
+            entry.get("tp_rejected"),
+            entry.get("drawdown_pct"),
+            entry.get("risk_reward"),
+            entry.get("strategy_tag"),
+            entry.get("signal_source")
+        ]
+
+        sheet.append_row(row, value_input_option="USER_ENTERED")
+
+        print(f"📄 Google Sheet запис: {entry['symbol']} {entry['side']} @ {entry['entry_price']}")
+        send_telegram_message(f"📄 Google Sheet запис: {entry['symbol']} {entry['side']}")
+
+    except Exception as e:
+        print(f"❌ Google Sheets log error: {e}")
+        send_telegram_message(f"❌ Google Sheets log error: {e}")
+
 
         
 
