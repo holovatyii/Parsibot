@@ -258,6 +258,41 @@ def create_trailing_stop(symbol, side, callback_rate):
         print(error_text)
         send_telegram_message(error_text)
         return None
+ def log_trade_to_csv(entry):
+    try:
+        if not os.path.exists(CSV_LOG_PATH):
+            with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
+                    "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
+                    "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
+                    "strategy_tag", "signal_source"
+                ])
+            print("📁 CSV файл створено автоматично")
+
+        with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
+            fieldnames = [
+                "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
+                "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
+                "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
+                "strategy_tag", "signal_source"
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            for field in fieldnames:
+                if field not in entry:
+                    entry[field] = None
+
+            writer.writerow(entry)
+
+        print(f"✅ CSV запис: {entry}")
+        send_telegram_message(f"✅ CSV запис: {entry['symbol']} {entry['side']} @ {entry['entry_price']}")
+
+    except Exception as e:
+        print(f"❌ CSV log error: {e}")
+        send_telegram_message(f"❌ CSV log error: {e}")
+
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
