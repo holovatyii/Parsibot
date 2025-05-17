@@ -298,7 +298,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 def log_trade_to_sheets(entry):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+        creds_dict = json.loads(os.environ["GOOGLE_SERVICE_JSON"])
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
         sheet = client.open_by_key("1Cvx6wMflSe45vYhPCuVd79gY1vPkvK5tqN61uV2dQjs").sheet1
