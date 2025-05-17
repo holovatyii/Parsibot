@@ -349,9 +349,11 @@ def webhook():
     try:
         data = request.get_json(force=True)
         send_telegram_message(f"📥 Запит отримано: {data}")
+
         if not data or data.get("password") != webhook_password:
             return {"error": "Unauthorized"}, 401
 
+        # Основні параметри
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
         qty = float(data.get("qty", default_base_qty))
@@ -359,8 +361,16 @@ def webhook():
         sl = float(data.get("sl"))
         use_trailing = data.get("trailing", False)
         callback = float(data.get("callback", 0.75))
+
+        # Нові поля з TradingView
+        strategy_tag = data.get("strategy_tag", "tv_default")
+        order_link_id = data.get("order_link_id", "")
+        signal_source = data.get("signal_source", "TradingView")
+
+        # Закриваємо відкриті ордери
         cancel_all_close_orders(symbol)
 
+        # Поточна ціна та маркет-ордер
         entry_price = get_price(symbol)
         market_result = create_market_order(symbol, side, qty)
 
@@ -368,7 +378,10 @@ def webhook():
             send_telegram_message(f"❌ Market ордер не створено: {market_result}")
             return {"error": "Market order failed"}, 400
 
-        order_id = market_result["result"].get("orderId", "") if market_result.get("result") else ""
+        # Order ID — або з TradingView, або з Bybit
+        order_id = order_link_id or market_result["result"].get("orderId", "")
+
+        # SL перевірка
         price = get_price(symbol)
         actual_sl = sl
         if not is_sl_valid(sl, price):
@@ -401,7 +414,7 @@ def webhook():
 
         send_telegram_message(f"✅ Ордер виконано. Пара: {symbol}, Сторона: {side}, TP: {tp}, SL: {actual_sl}")
 
-        # Формуємо один об'єкт для логів
+        # Об'єкт для логування
         entry = {
             "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
             "symbol": symbol,
@@ -423,15 +436,15 @@ def webhook():
             "tp_rejected": fallback_tp_set,
             "drawdown_pct": None,
             "risk_reward": round(abs(tp - entry_price) / abs(sl - entry_price), 2) if tp and sl else None,
-            "strategy_tag": "tv_default",
-            "signal_source": "TradingView"
+            "strategy_tag": strategy_tag,
+            "signal_source": signal_source
         }
 
-        # Запис у CSV + Google Sheet
+        # Запис у лог
         log_trade_to_csv(entry)
         log_trade_to_sheets(entry)
 
-        # Зберігаємо відкриту угоду
+        # Зберігаємо трейд
         save_open_trade({
             "symbol": symbol,
             "order_id": order_id,
@@ -447,6 +460,7 @@ def webhook():
     except Exception as e:
         send_telegram_message(f"🔥 Webhook error: {e}")
         return {"error": str(e)}, 500
+
 
 
 
