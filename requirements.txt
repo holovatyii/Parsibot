@@ -2,6 +2,8 @@ flask
 requests
 pybit==5.10.1
 python-dotenv
+gspread
+oauth2client
 
 
 
