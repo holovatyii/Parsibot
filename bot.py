@@ -304,7 +304,8 @@ def log_trade_to_sheets(entry):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        sheet = client.open_by_key("1Cvx6wMflSe45vYhPCuVd79gY1vPkvK5tqN61uV2dQjs").sheet1
+        sheet = client.open_by_key("1Cvx6wMflSe45vYhPCuVd79gY1vPkvK5tqN61uV2dQjs").worksheet("Logs")
+
 
         row = [
             entry.get("timestamp"),
