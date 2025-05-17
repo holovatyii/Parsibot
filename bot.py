@@ -5,6 +5,8 @@ import json
 import csv
 import hashlib
 import requests
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask, request, send_file
 from dotenv import load_dotenv
 from datetime import datetime
