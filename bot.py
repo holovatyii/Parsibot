@@ -546,10 +546,10 @@ def webhook():
             "signal_source": signal_source
         }
         # 🔍 Оновлення статусу через check_order_execution
-    execution = check_order_execution(order_id, symbol)
-    entry["entry_price"] = execution["entry_price"] or entry["entry_price"]
-    entry["timestamp"] = execution["entry_time"] or entry["timestamp"]
-    entry["result"] = "filled" if execution["filled"] else "pending"
+        execution = check_order_execution(order_id, symbol)
+        entry["entry_price"] = execution["entry_price"] or entry["entry_price"]
+        entry["timestamp"] = execution["entry_time"] or entry["timestamp"]
+        entry["result"] = "filled" if execution["filled"] else "pending"
 
 
         # Запис у лог
