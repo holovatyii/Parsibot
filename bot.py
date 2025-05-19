@@ -304,7 +304,7 @@ def log_trade_to_sheets(entry):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        sheet = client.open_by_key("1Cvx6wMflSe45vYhPCuVd79gY1vPkvK5tqN61uV2dQjs").worksheet("Logs")
+        sheet = client.open_by_key("1fHKdlzDFLzAYz7k7Eku4edxYuxJeDWbojDLcfXx2iSg").worksheet("Logs")
 
 
         row = [
