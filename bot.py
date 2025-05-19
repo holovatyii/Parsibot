@@ -316,18 +316,22 @@ def create_trailing_stop(symbol, side, callback_rate):
         return None
 def log_trade_to_csv(entry):
     try:
-        if not os.path.exists(CSV_LOG_PATH):
-            
+        fieldnames = [
+            "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
+            "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
+            "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
+            "strategy_tag", "signal_source"
+        ]
 
+        # 🔐 Якщо файл не існує — створюємо і додаємо заголовки
+        file_exists = os.path.exists(CSV_LOG_PATH)
         with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
-            fieldnames = [
-                "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
-                "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
-                "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
-                "strategy_tag", "signal_source"
-            ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
+            if not file_exists:
+                writer.writeheader()
+
+            # ✅ Заповнюємо пропущені поля None
             for field in fieldnames:
                 if field not in entry:
                     entry[field] = None
@@ -340,8 +344,6 @@ def log_trade_to_csv(entry):
     except Exception as e:
         print(f"❌ CSV log error: {e}")
         send_telegram_message(f"❌ CSV log error: {e}")
-        import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 
 def log_trade_to_sheets(entry):
     try:
