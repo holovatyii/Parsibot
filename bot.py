@@ -68,6 +68,42 @@ def check_order_execution(order_id, symbol):
         data = response.json()
         if data["retCode"] == 0 and data["result"]["list"]:
             order = data["result"]["list"][0]
+            avg_price = float(order.get("avgPrice", 0))
+            if order.get("orderStatus") in ("Filled", "PartiallyFilled") and avg_price > 0:
+                return {
+                    "filled": True,
+                    "entry_price": avg_price,
+                    "entry_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                }
+
+        # 💡 Fallback #2: використовуємо ціну з get_price
+        fallback_price = get_price(symbol)
+        if fallback_price:
+            return {
+                "filled": True,
+                "entry_price": fallback_price,
+                "entry_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            }
+
+        return {
+            "filled": False,
+            "entry_price": None,
+            "entry_time": None
+        }
+
+    except Exception as e:
+        print(f"❌ Execution check error: {e}")
+        return {
+            "filled": False,
+            "entry_price": None,
+            "entry_time": None
+        }
+
+        # 🔄 Fallback: order realtime
+        response = requests.get("https://api-testnet.bybit.com/v5/order/realtime", params=params)
+        data = response.json()
+        if data["retCode"] == 0 and data["result"]["list"]:
+            order = data["result"]["list"][0]
             if order.get("orderStatus") == "Filled":
                 return {
                     "filled": True,
@@ -75,13 +111,25 @@ def check_order_execution(order_id, symbol):
                     "entry_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
-        # 🔚 Якщо нічого не знайшли
         return {
             "filled": False,
             "entry_price": None,
             "entry_time": None
         }
 
+    except Exception as e:
+        print(f"❌ Execution check error: {e}")
+        return {
+            "filled": False,
+            "entry_price": None,
+            "entry_time": None
+        }
+        else:
+            return {
+                "filled": False,
+                "entry_price": None,
+                "entry_time": None
+            }
     except Exception as e:
         print(f"❌ Execution check error: {e}")
         return {
