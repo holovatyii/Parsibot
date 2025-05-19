@@ -550,6 +550,9 @@ def webhook():
         entry["entry_price"] = execution["entry_price"] or entry["entry_price"]
         entry["timestamp"] = execution["entry_time"] or entry["timestamp"]
         entry["result"] = "filled" if execution["filled"] else "pending"
+        print("📍 Execution check result:", execution)
+        send_telegram_message(f"📍 Execution result:\n{json.dumps(execution, indent=2)}")
+
 
 
         # Запис у лог
