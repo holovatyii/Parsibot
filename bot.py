@@ -52,6 +52,7 @@ def check_order_execution(order_id, symbol):
     params["sign"] = sign
 
     try:
+        # 🔍 Основна перевірка: execution list
         response = requests.get("https://api-testnet.bybit.com/v5/execution/list", params=params)
         data = response.json()
         if data["retCode"] == 0 and data["result"]["list"]:
@@ -61,6 +62,32 @@ def check_order_execution(order_id, symbol):
                 "entry_price": float(exec_info["price"]),
                 "entry_time": exec_info["execTime"]
             }
+
+        # 🔄 Fallback: order realtime
+        response = requests.get("https://api-testnet.bybit.com/v5/order/realtime", params=params)
+        data = response.json()
+        if data["retCode"] == 0 and data["result"]["list"]:
+            order = data["result"]["list"][0]
+            if order.get("orderStatus") == "Filled":
+                return {
+                    "filled": True,
+                    "entry_price": float(order.get("avgPrice", 0)),
+                    "entry_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                }
+
+        return {
+            "filled": False,
+            "entry_price": None,
+            "entry_time": None
+        }
+
+    except Exception as e:
+        print(f"❌ Execution check error: {e}")
+        return {
+            "filled": False,
+            "entry_price": None,
+            "entry_time": None
+        }
         else:
             return {
                 "filled": False,
