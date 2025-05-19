@@ -10,6 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask, request, send_file
 from dotenv import load_dotenv
 from datetime import datetime
+from urllib.parse import urlencode
 import io
 
 load_dotenv("bot.env")
@@ -29,8 +30,50 @@ MAX_SL_DISTANCE_PERC = 0.07
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_LOG_PATH = os.path.join(BASE_DIR, "trades.csv")
 
-
 app = Flask(__name__)
+
+def generate_signature(query_string, secret):
+    return hmac.new(
+        bytes(secret, "utf-8"),
+        bytes(query_string, "utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+def check_order_execution(order_id, symbol):
+    timestamp = str(int(time.time() * 1000))
+    params = {
+        "apiKey": api_key,
+        "symbol": symbol,
+        "orderId": order_id,
+        "timestamp": timestamp
+    }
+    query_string = urlencode(params)
+    sign = generate_signature(query_string, api_secret)
+    params["sign"] = sign
+
+    try:
+        response = requests.get("https://api-testnet.bybit.com/v5/execution/list", params=params)
+        data = response.json()
+        if data["retCode"] == 0 and data["result"]["list"]:
+            exec_info = data["result"]["list"][0]
+            return {
+                "filled": True,
+                "entry_price": float(exec_info["price"]),
+                "entry_time": exec_info["execTime"]
+            }
+        else:
+            return {
+                "filled": False,
+                "entry_price": None,
+                "entry_time": None
+            }
+    except Exception as e:
+        print(f"❌ Execution check error: {e}")
+        return {
+            "filled": False,
+            "entry_price": None,
+            "entry_time": None
+        }
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
@@ -39,6 +82,7 @@ def send_telegram_message(message):
         requests.post(url, json=data)
     except Exception as e:
         print(f"Telegram Error: {e}")
+
 
 def is_tp_direction_valid(tp, price, side):
     return tp > price if side == "Buy" else tp < price
@@ -273,15 +317,7 @@ def create_trailing_stop(symbol, side, callback_rate):
 def log_trade_to_csv(entry):
     try:
         if not os.path.exists(CSV_LOG_PATH):
-            with open(CSV_LOG_PATH, mode="w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([
-                    "timestamp", "symbol", "side", "qty", "entry_price", "tp", "sl", "trailing",
-                    "order_id", "result", "pnl", "exit_price", "exit_reason", "tp_hit", "sl_hit",
-                    "runtime_sec", "sl_auto_adjusted", "tp_rejected", "drawdown_pct", "risk_reward",
-                    "strategy_tag", "signal_source"
-                ])
-            print("📁 CSV файл створено автоматично")
+            
 
         with open(CSV_LOG_PATH, mode="a", newline="", encoding="utf-8") as csvfile:
             fieldnames = [
