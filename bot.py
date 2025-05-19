@@ -444,8 +444,10 @@ def webhook():
             send_telegram_message(f"❌ Market ордер не створено: {market_result}")
             return {"error": "Market order failed"}, 400
 
-        # Order ID — або з TradingView, або з Bybit
-        order_id = order_link_id or market_result["result"].get("orderId", "")
+        # Завжди використовуємо реальний orderId з Bybit
+        order_id = market_result["result"].get("orderId", "")
+        order_link_id = order_link_id or ""  # можеш зберігати окремо, якщо хочеш
+
 
         # SL перевірка
         price = get_price(symbol)
