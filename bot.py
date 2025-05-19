@@ -340,6 +340,61 @@ def log_trade_to_sheets(entry):
     except Exception as e:
         print(f"❌ Google Sheets log error: {e}")
         send_telegram_message(f"❌ Google Sheets log error: {e}")
+def check_order_status(order_id, symbol):
+    try:
+        timestamp = str(int(time.time() * 1000))
+        params = {
+            "category": "linear",
+            "orderId": order_id,
+            "symbol": symbol,
+            "api_key": api_key,
+            "timestamp": timestamp
+        }
+
+        # Підпис
+        query_string = "&".join([f"{k}={params[k]}" for k in sorted(params)])
+        sign = hmac.new(
+            bytes(api_secret, "utf-8"),
+            msg=bytes(query_string, "utf-8"),
+            digestmod=hashlib.sha256
+        ).hexdigest()
+
+        params["sign"] = sign
+
+        # API запит
+        url = f"{base_url}/v5/order/history"
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if debug_responses:
+            print(f"🔍 Order status response:\n{json.dumps(data, indent=2)}")
+
+        if data.get("retCode") != 0 or not data["result"]["list"]:
+            return None
+
+        order = data["result"]["list"][0]
+        status = order.get("orderStatus")
+        exit_price = float(order.get("avgPrice", 0))
+        pnl = float(order.get("cumExecValue", 0))
+        order_type = order.get("orderType", "Unknown")
+
+        # Час у мілісекундах
+        create_time_ms = int(order.get("createdTime", 0))
+        update_time_ms = int(order.get("updatedTime", 0))
+        runtime_sec = round((update_time_ms - create_time_ms) / 1000)
+
+        return {
+            "status": status,
+            "exit_price": exit_price,
+            "pnl": pnl,
+            "order_type": order_type,
+            "runtime_sec": runtime_sec
+        }
+
+    except Exception as e:
+        print(f"❌ check_order_status error: {e}")
+        return None
+
 
 
         
@@ -546,9 +601,12 @@ def track_open_trades():
             if not os.path.exists(OPEN_TRADES_PATH):
                 time.sleep(30)
                 continue
+
             with open(OPEN_TRADES_PATH, "r", encoding="utf-8") as f:
                 trades = json.load(f)
+
             remaining = []
+
             for trade in trades:
                 order_id = trade["order_id"]
                 symbol = trade["symbol"]
@@ -559,37 +617,52 @@ def track_open_trades():
                 ts = datetime.strptime(trade["timestamp"], "%Y-%m-%d %H:%M:%S")
                 qty = float(trade["qty"])
 
-                # 🔍 Запит до Bybit (отримати статус позиції / ордерів)
-                # ⚠️ Тут треба вставити API-запит до /v5/position/list або order/history
-                # 🔧 Тимчасово емулюємо, що всі закрились вручну через 90 сек
-
+                # ⏱ Перевірка часу
                 runtime = (datetime.utcnow() - ts).total_seconds()
-                if runtime < 90:
+                if runtime < 30:
                     remaining.append(trade)
                     continue
 
-                exit_price = entry_price * (0.99 if side == "Buy" else 1.01)
-                tp_hit = exit_price == tp
-                sl_hit = exit_price == sl
-                pnl = round((entry_price - exit_price) * qty * (-1 if side == "Sell" else 1), 2)
-                exit_reason = "tp_hit" if tp_hit else "sl_hit" if sl_hit else "timeout"
+                # ✅ Запит до Bybit API
+                status_info = check_order_status(order_id, symbol)
+                if not status_info or status_info["status"] != "Filled":
+                    remaining.append(trade)
+                    continue
+
+                exit_price = status_info["exit_price"]
+                pnl = round(status_info["pnl"], 2)
+                order_type = status_info["order_type"]
+                runtime_sec = status_info["runtime_sec"]
+
+                # 🎯 Тип виходу
+                tp_hit = tp and abs(exit_price - tp) < 1e-4
+                sl_hit = sl and abs(exit_price - sl) < 1e-4
+                exit_reason = "tp_hit" if tp_hit else "sl_hit" if sl_hit else "manual_or_market"
 
                 update_csv_trade(order_id, {
                     "exit_price": exit_price,
                     "exit_reason": exit_reason,
                     "tp_hit": tp_hit,
                     "sl_hit": sl_hit,
-                    "runtime_sec": int(runtime),
+                    "runtime_sec": runtime_sec,
                     "pnl": pnl,
+                    "order_type": order_type,
                     "result": "closed"
                 })
-               
+
+                send_telegram_message(
+                    f"✅ Trade closed: {symbol}\n"
+                    f"🔁 {side} @ {entry_price} → {exit_price}\n"
+                    f"💰 PnL: {pnl} | ⏱ {runtime_sec}s | 🎯 {exit_reason.upper()}"
+                )
 
             with open(OPEN_TRADES_PATH, "w", encoding="utf-8") as f:
                 json.dump(remaining, f, indent=2)
+
         except Exception as e:
             print(f"❌ Track error: {e}")
         time.sleep(30)
+
 
 # 🧠 Запуск моніторингу в окремому потоці
 
