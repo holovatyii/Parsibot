@@ -75,6 +75,7 @@ def check_order_execution(order_id, symbol):
                     "entry_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
+        # 🔚 Якщо нічого не знайшли
         return {
             "filled": False,
             "entry_price": None,
@@ -88,19 +89,7 @@ def check_order_execution(order_id, symbol):
             "entry_price": None,
             "entry_time": None
         }
-        else:
-            return {
-                "filled": False,
-                "entry_price": None,
-                "entry_time": None
-            }
-    except Exception as e:
-        print(f"❌ Execution check error: {e}")
-        return {
-            "filled": False,
-            "entry_price": None,
-            "entry_time": None
-        }
+
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
