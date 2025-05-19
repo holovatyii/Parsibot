@@ -193,12 +193,17 @@ def get_price(symbol):
         url = f"{base_url}/v5/market/tickers?category=linear&symbol={symbol}"
         response = requests.get(url)
         data = response.json()
-        if "result" in data and "list" in data["result"]:
+
+        if debug_responses:
+            print(f"📉 get_price() response:\n{json.dumps(data, indent=2)}")
+
+        if data.get("result") and "list" in data["result"] and data["result"]["list"]:
             last_price = data["result"]["list"][0].get("lastPrice")
             return float(last_price) if last_price else None
     except Exception as e:
         print(f"get_price() error: {e}")
     return None
+
 
 def create_market_order(symbol, side, qty):
     try:
