@@ -545,6 +545,9 @@ def webhook():
             "strategy_tag": strategy_tag,
             "signal_source": signal_source
         }
+        import time
+        time.sleep(1.5)
+
         # 🔍 Оновлення статусу через check_order_execution
         execution = check_order_execution(order_id, symbol)
         entry["entry_price"] = execution["entry_price"] or entry["entry_price"]
