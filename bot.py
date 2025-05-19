@@ -151,10 +151,20 @@ def create_market_order(symbol, side, qty):
             "Content-Type": "application/json"
         }
         response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
-        return response.json()
+        result = response.json()
+
+        # 🧾 Лог: зберігаємо реальний orderId
+        if result.get("retCode") == 0 and "orderId" in result.get("result", {}):
+            real_order_id = result["result"]["orderId"]
+            print(f"✅ Реальний orderId: {real_order_id}")
+            return result  # Тепер він містить і orderId, який можна передати далі
+        else:
+            print(f"⚠️ Помилка у відповіді Bybit: {result}")
+            return None
     except Exception as e:
-        print(f"Market order error: {e}")
+        print(f"❌ Market order error: {e}")
         return None
+
 
 def create_take_profit_order(symbol, side, qty, tp):
     try:
