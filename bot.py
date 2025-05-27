@@ -282,7 +282,10 @@ def create_market_order(symbol, side, qty):
             "side": side,
             "orderType": "Market",
             "qty": str(qty),
-            "timeInForce": "ImmediateOrCancel"
+            "timeInForce": "ImmediateOrCancel",
+            "tradeMode": 1,         # ← UTA cross
+            "positionIdx": 0,       # ← One-way
+            "orderFilter": "Order"
         }
         body = json.dumps(order_data)
         sign = sign_request(api_key, api_secret, body, timestamp)
@@ -295,13 +298,11 @@ def create_market_order(symbol, side, qty):
         }
 
         response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
-        text = response.text
         status = response.status_code
-
         try:
             result = response.json()
         except Exception as decode_error:
-            send_telegram_message(f"❌ JSON decode error: {decode_error}\nResponse: {text}")
+            send_telegram_message(f"❌ JSON decode error: {decode_error}\nResponse: {response.text}")
             return None
 
         log_msg = f"🧾 Market order response ({status}):\n{json.dumps(result, indent=2)}"
@@ -317,6 +318,7 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
+
 
 
 
