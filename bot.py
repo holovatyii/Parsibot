@@ -293,20 +293,31 @@ def create_market_order(symbol, side, qty):
             "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
-        response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
-        result = response.json()
 
-        # 🧾 Лог: зберігаємо реальний orderId
-        if result.get("retCode") == 0 and "orderId" in result.get("result", {}):
-            real_order_id = result["result"]["orderId"]
-            print(f"✅ Реальний orderId: {real_order_id}")
-            return result  # Тепер він містить і orderId, який можна передати далі
-        else:
-            print(f"⚠️ Помилка у відповіді Bybit: {result}")
+        response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
+        text = response.text
+        status = response.status_code
+
+        try:
+            result = response.json()
+        except Exception as decode_error:
+            send_telegram_message(f"❌ JSON decode error: {decode_error}\nResponse: {text}")
             return None
+
+        log_msg = f"🧾 Market order response ({status}):\n{json.dumps(result, indent=2)}"
+        print(log_msg)
+        send_telegram_message(log_msg)
+
+        if result.get("retCode") == 0 and "orderId" in result.get("result", {}):
+            return result
+        else:
+            send_telegram_message(f"⚠️ Bybit order error: {result.get('retMsg')}")
+            return None
+
     except Exception as e:
-        print(f"❌ Market order error: {e}")
+        send_telegram_message(f"❌ Market order error: {e}")
         return None
+
 
 
 def create_take_profit_order(symbol, side, qty, tp):
