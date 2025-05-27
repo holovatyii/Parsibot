@@ -25,17 +25,42 @@ telegram_chat_id = os.environ["telegram_chat_id"]
 env = os.environ.get("env", "live")
 debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
-# 🔔 Повідомлення при запуску
-if env == "test":
-    send_telegram_message("🧪 ParsiBot працює в TESTNET")
-else:
-    send_telegram_message("🚨 ParsiBot запущено в MAINNET режимі")
+
     
 MAX_SL_DISTANCE_PERC = 0.07
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_LOG_PATH = os.path.join(BASE_DIR, "trades.csv")
 
 app = Flask(__name__)
+
+# ... всі імпорти + os.environ ...
+env = os.environ.get("env", "live")
+base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
+
+app = Flask(__name__)
+
+# 🟢 ТЕПЕР функція send_telegram_message
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+    data = {"chat_id": telegram_chat_id, "text": message}
+    try:
+        requests.post(url, json=data)
+    except Exception as e:
+        print(f"Telegram Error: {e}")
+
+# ✅ І лише тепер: режим
+def announce_mode():
+    try:
+        if env == "test":
+            send_telegram_message("🧪 ParsiBot працює в TESTNET")
+        else:
+            send_telegram_message("🚨 ParsiBot запущено в MAINNET режимі")
+    except:
+        print("⚠️ Telegram не ініціалізовано")
+
+# 🔁 Викликаємо
+announce_mode()
+
 
 def generate_signature(query_string, secret):
     return hmac.new(
