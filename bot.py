@@ -25,7 +25,12 @@ telegram_chat_id = os.environ["telegram_chat_id"]
 env = os.environ.get("env", "live")
 debug_responses = os.environ.get("debug_responses", "False").lower() == "true"
 base_url = "https://api-testnet.bybit.com" if env == "test" else "https://api.bybit.com"
-
+# 🔔 Повідомлення при запуску
+if env == "test":
+    send_telegram_message("🧪 ParsiBot працює в TESTNET")
+else:
+    send_telegram_message("🚨 ParsiBot запущено в MAINNET режимі")
+    
 MAX_SL_DISTANCE_PERC = 0.07
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_LOG_PATH = os.path.join(BASE_DIR, "trades.csv")
