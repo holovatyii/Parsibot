@@ -184,19 +184,19 @@ def is_tp_direction_valid(tp, price, side):
 def is_sl_valid(sl, price):
     return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
 
-def sign_request(api_key, api_secret, query_string, timestamp):
-    sign_payload = f"{timestamp}{api_key}{query_string}"
+def sign_request_post(api_key, api_secret, payload: dict, timestamp: str):
+    body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+    sign_payload = f"{timestamp}{api_key}{body_str}"
     return hmac.new(
         bytes(api_secret, "utf-8"),
         bytes(sign_payload, "utf-8"),
         hashlib.sha256
-    ).hexdigest()
+    ).hexdigest(), body_str
+
 
 def cancel_all_close_orders(symbol):
     try:
         timestamp = str(int(time.time() * 1000))
-
-        # 📦 Параметри для GET /v5/order/list
         params = {
             "api_key": api_key,
             "timestamp": timestamp,
@@ -205,7 +205,7 @@ def cancel_all_close_orders(symbol):
             "openOnly": "1"
         }
 
-        # 🔐 Підписуємо запит
+        # 🔐 Підписуємо GET-запит
         query_string = "&".join([f"{k}={params[k]}" for k in sorted(params)])
         sign = hmac.new(
             bytes(api_secret, "utf-8"),
@@ -214,14 +214,15 @@ def cancel_all_close_orders(symbol):
         ).hexdigest()
         params["sign"] = sign
 
-        # 🔗 Відправляємо запит
+        # 🔗 Отримуємо список ордерів
         response = requests.get(f"{base_url}/v5/order/list", params=params)
 
-        # 🛡 Перевірка типу відповіді
+        if not response.text.strip():
+            raise ValueError("Empty response body from /order/list")
+
         if "application/json" not in response.headers.get("Content-Type", ""):
-            print("❌ Unexpected response:")
+            send_telegram_message("❌ cancel_all_close_orders error: Non-JSON response")
             print(response.text)
-            send_telegram_message("❌ cancel_all_close_orders error: Non-JSON response from Bybit")
             return
 
         data = response.json()
@@ -235,14 +236,16 @@ def cancel_all_close_orders(symbol):
         count = 0
 
         for order in orders:
-            if order.get("symbol") == symbol and order.get("orderId"):
-                order_id = order["orderId"]
+            order_id = order.get("orderId")
+            if order_id:
                 cancel_timestamp = str(int(time.time() * 1000))
-                cancel_body = json.dumps({
+                payload = {
                     "category": "linear",
                     "orderId": order_id
-                })
-                cancel_sign = sign_request(api_key, api_secret, cancel_body, cancel_timestamp)
+                }
+
+                cancel_sign, cancel_body = sign_request_post(api_key, api_secret, payload, cancel_timestamp)
+
                 cancel_headers = {
                     "X-BAPI-API-KEY": api_key,
                     "X-BAPI-SIGN": cancel_sign,
@@ -250,8 +253,15 @@ def cancel_all_close_orders(symbol):
                     "X-BAPI-RECV-WINDOW": "5000",
                     "Content-Type": "application/json"
                 }
+
                 cancel_response = requests.post(f"{base_url}/v5/order/cancel", data=cancel_body, headers=cancel_headers)
-                print(f"🧹 Canceled: {order_id} → {cancel_response.json()}")
+
+                try:
+                    cancel_result = cancel_response.json()
+                    print(f"🧹 Canceled: {order_id} → {json.dumps(cancel_result, indent=2)}")
+                except Exception as decode_error:
+                    send_telegram_message(f"⚠️ Error decoding cancel response: {decode_error}\nText: {cancel_response.text}")
+
                 count += 1
 
         send_telegram_message(f"🧹 Скасовано {count} ордерів через /list для {symbol}")
@@ -259,6 +269,7 @@ def cancel_all_close_orders(symbol):
     except Exception as e:
         send_telegram_message(f"❌ cancel_all_close_orders error: {e}")
         print(f"❌ cancel_all_close_orders error: {e}")
+
 
 
 def get_price(symbol):
@@ -351,7 +362,7 @@ def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=1.0):
 def create_market_order(symbol, side, qty):
     try:
         timestamp = str(int(time.time() * 1000))
-        order_data = {
+        payload = {
             "category": "linear",
             "symbol": symbol,
             "side": side,
@@ -362,18 +373,20 @@ def create_market_order(symbol, side, qty):
             "positionIdx": 0,       # ← One-way
             "orderFilter": "Order"
         }
-        body = json.dumps(order_data)
-        sign = sign_request(api_key, api_secret, body, timestamp)
+
+        signature, body_str = sign_request_post(api_key, api_secret, payload, timestamp)
+
         headers = {
             "X-BAPI-API-KEY": api_key,
-            "X-BAPI-SIGN": sign,
+            "X-BAPI-SIGN": signature,
             "X-BAPI-TIMESTAMP": timestamp,
             "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
 
-        response = requests.post(f"{base_url}/v5/order/create", data=body, headers=headers)
+        response = requests.post(f"{base_url}/v5/order/create", data=body_str, headers=headers)
         status = response.status_code
+
         try:
             result = response.json()
         except Exception as decode_error:
@@ -393,6 +406,7 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
+
 
 
 
