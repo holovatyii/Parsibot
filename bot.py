@@ -299,6 +299,16 @@ def get_wallet_balance_uta():
         send_telegram_message(f"⚠️ Error getting wallet balance: {e}")
         return float(os.environ.get("manual_balance", 0))
 
+def get_market_price(symbol):
+    try:
+        url = f"{base_url}/v5/market/tickers?category=linear&symbol={symbol}"
+        response = requests.get(url)
+        result = response.json()
+        price = float(result["result"]["list"][0]["lastPrice"])
+        return price
+    except Exception as e:
+        send_telegram_message(f"⚠️ Не вдалося отримати ціну: {e}")
+        return None
 
 def calculate_dynamic_qty(entry_price, sl_price, risk_pct=0.01):
     try:
