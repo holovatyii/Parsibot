@@ -377,15 +377,21 @@ def create_market_order(symbol, side, qty):
             "symbol": symbol,
             "side": side,
             "orderType": "Market",
-            "qty": format(qty, ".2f"),  # <-- ключова зміна
+            "qty": format(qty, ".2f"),  # ← обов'язково форматування
             "timeInForce": "ImmediateOrCancel",
             "tradeMode": 1,
             "positionIdx": 0,
             "orderFilter": "Order"
         }
 
-        signature, body_str = sign_request_post(api_key, api_secret, payload, timestamp)
-        print(f"📤 Signing payload: {timestamp}{api_key}{body_str}")
+        # 🔐 Створення підпису
+        body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+        sign_payload = f"{timestamp}{api_key}{body_str}"
+        signature = hmac.new(
+            bytes(api_secret, "utf-8"),
+            msg=bytes(sign_payload, "utf-8"),
+            digestmod=hashlib.sha256
+        ).hexdigest()
 
         headers = {
             "X-BAPI-API-KEY": api_key,
@@ -395,9 +401,19 @@ def create_market_order(symbol, side, qty):
             "Content-Type": "application/json"
         }
 
-        response = requests.post(f"{base_url}/v5/order/create", data=body_str, headers=headers)
-        result = response.json()
-        send_telegram_message(f"🧾 Market order response ({response.status_code}):\n{json.dumps(result, indent=2)}")
+        # 🧾 Надсилання запиту як JSON
+        response = requests.post(f"{base_url}/v5/order/create", json=payload, headers=headers)
+        status = response.status_code
+
+        try:
+            result = response.json()
+        except Exception as decode_error:
+            send_telegram_message(f"❌ JSON decode error: {decode_error}\nResponse: {response.text}")
+            return None
+
+        log_msg = f"🧾 Market order response ({status}):\n{json.dumps(result, indent=2)}"
+        print(log_msg)
+        send_telegram_message(log_msg)
 
         if result.get("retCode") == 0 and "orderId" in result.get("result", {}):
             return result
