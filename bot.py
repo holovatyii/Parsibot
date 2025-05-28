@@ -362,10 +362,16 @@ def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=0.2):
 
     qty = risk_amount / stop_distance
 
-    # ✅ Мінімальний розмір контракту
-    if qty < 1:
-        qty = 1
+    # ✅ Мінімальний розмір контракту Bybit для SOL = 0.01, ставимо запас
+    if qty < 0.05:
+        qty = 0.05
 
+    # ✅ Максимальний захист по балансу
+    if qty * market_price > balance:
+        send_telegram_message(f"⚠️ Недостатньо балансу. Потрібно {qty * market_price:.2f} USDT, є тільки {balance:.2f}.")
+        return 0
+
+    send_telegram_message(f"💡 Qty розраховано: {qty:.4f} SOL, при ціні {market_price:.2f}, stop_distance={stop_distance:.4f}")
     return round(qty, 2)
 
 
