@@ -272,6 +272,46 @@ def get_price(symbol):
         print(f"get_price() error: {e}")
     return None
 
+def get_wallet_balance_uta():
+    try:
+        timestamp = str(int(time.time() * 1000))
+        headers = {
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": "5000",
+            "Content-Type": "application/json"
+        }
+        payload = {}
+        sign = sign_request(api_key, api_secret, json.dumps(payload), timestamp)
+        headers["X-BAPI-SIGN"] = sign
+
+        response = requests.get(f"{base_url}/v5/account/wallet-balance", headers=headers)
+        result = response.json()
+
+        usdt_info = next((x for x in result["result"]["list"] if x["coin"] == "USDT"), None)
+        if usdt_info:
+            balance = float(usdt_info["availableToTrade"])
+            return balance
+        else:
+            send_telegram_message("⚠️ USDT balance not found in wallet response.")
+            return float(os.environ.get("manual_balance", 0))
+    except Exception as e:
+        send_telegram_message(f"⚠️ Error getting wallet balance: {e}")
+        return float(os.environ.get("manual_balance", 0))
+
+
+def calculate_dynamic_qty(entry_price, sl_price, risk_pct=0.01):
+    try:
+        balance = get_wallet_balance_uta()
+        risk_amount = balance * risk_pct
+        distance = abs(entry_price - sl_price)
+        if distance == 0:
+            return 0.01  # мінімальна qty
+        qty = risk_amount / distance
+        return max(round(qty, 3), 0.01)  # захист
+    except Exception as e:
+        send_telegram_message(f"❌ Qty calculation error: {e}")
+        return 0.01
 
 def create_market_order(symbol, side, qty):
     try:
