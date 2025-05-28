@@ -342,7 +342,7 @@ def get_market_price(symbol):
         send_telegram_message(f"⚠️ Не вдалося отримати ціну: {e}")
         return None
 
-def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=1.0):
+def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=0.2):
     balance = get_wallet_balance_uta()
     market_price = get_market_price(symbol)
     if not market_price:
