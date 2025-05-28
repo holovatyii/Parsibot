@@ -372,6 +372,8 @@ def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=1.0):
 def create_market_order(symbol, side, qty):
     try:
         timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+
         payload = {
             "category": "linear",
             "symbol": symbol,
@@ -385,8 +387,9 @@ def create_market_order(symbol, side, qty):
         }
 
         body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
-        sign_payload = f"{timestamp}{api_key}{body_str}"
-        send_telegram_message(f"SIGN_PAYLOAD:\n{sign_payload}")
+        sign_payload = f"{timestamp}{api_key}{recv_window}{body_str}"
+        send_telegram_message(f"🧾 SIGN_PAYLOAD:\n{sign_payload}")
+
         signature = hmac.new(
             bytes(api_secret, "utf-8"),
             msg=bytes(sign_payload, "utf-8"),
@@ -397,12 +400,16 @@ def create_market_order(symbol, side, qty):
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": signature,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": "5000",
+            "X-BAPI-RECV-WINDOW": recv_window,
             "Content-Type": "application/json"
         }
 
-        # 🔥 Повертаємось до data=body_str (ручний JSON)
-        response = requests.post(f"{base_url}/v5/order/create", data=body_str.encode(), headers=headers)
+        response = requests.post(
+            f"{base_url}/v5/order/create",
+            data=body_str.encode(),
+            headers=headers
+        )
+
         status = response.status_code
 
         try:
@@ -424,7 +431,6 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
-
 
 def create_take_profit_order(symbol, side, qty, tp):
     try:
