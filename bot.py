@@ -386,6 +386,7 @@ def create_market_order(symbol, side, qty):
 
         body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
         sign_payload = f"{timestamp}{api_key}{body_str}"
+        print(f"\n🧾 SIGN DEBUG >>>\nSIGN_PAYLOAD:\n{sign_payload}\n")
         signature = hmac.new(
             bytes(api_secret, "utf-8"),
             msg=bytes(sign_payload, "utf-8"),
