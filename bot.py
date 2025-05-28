@@ -186,14 +186,14 @@ def is_sl_valid(sl, price):
 
 def sign_request_post(api_key, api_secret, payload: dict, timestamp: str):
     body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
-    # ❗ Без RECV-WINDOW в origin string!
-    sign_payload = f"{timestamp}{api_key}{body_str}"
+    sign_payload = f"{timestamp}{api_key}{body_str}"  # ❌ без recvWindow тут!
     signature = hmac.new(
         bytes(api_secret, "utf-8"),
         bytes(sign_payload, "utf-8"),
         hashlib.sha256
     ).hexdigest()
     return signature, body_str
+
 
 def sign_request(api_key, api_secret, query_string, timestamp):
     message = str(timestamp) + api_key + query_string
@@ -384,29 +384,18 @@ def create_market_order(symbol, side, qty):
             "orderFilter": "Order"
         }
 
-        # DEBUG: лог тіла перед підписом
-        debug_body = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
-        sign_payload = f"{timestamp}{api_key}{debug_body}"
-        signature = hmac.new(
-            bytes(api_secret, "utf-8"),
-            bytes(sign_payload, "utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-
-        # DEBUG повідомлення
-        send_telegram_message(
-            f"🧪 DEBUG SIGNING:\nTimestamp: {timestamp}\nPayload: {debug_body}\nSign Payload: {sign_payload}\nSignature: {signature}"
-        )
+        # Підписуємо без recvWindow
+        signature, body_str = sign_request_post(api_key, api_secret, payload, timestamp)
 
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": signature,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": "5000",
+            "X-BAPI-RECV-WINDOW": "5000",  # В хедері – так, але не в підписі!
             "Content-Type": "application/json"
         }
 
-        response = requests.post(f"{base_url}/v5/order/create", data=debug_body, headers=headers)
+        response = requests.post(f"{base_url}/v5/order/create", data=body_str, headers=headers)
         status = response.status_code
 
         try:
@@ -428,6 +417,7 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
+
 
 
 
