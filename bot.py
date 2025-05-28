@@ -363,8 +363,8 @@ def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=0.2):
     qty = risk_amount / stop_distance
 
     # ✅ Мінімальний розмір контракту Bybit для SOL = 0.01, ставимо запас
-    if qty < 0.05:
-        qty = 0.05
+    if qty < 0.1:
+        qty = 0.1
 
     # ✅ Максимальний захист по балансу
     if qty * market_price > balance:
