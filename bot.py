@@ -310,18 +310,32 @@ def get_market_price(symbol):
         send_telegram_message(f"⚠️ Не вдалося отримати ціну: {e}")
         return None
 
-def calculate_dynamic_qty(entry_price, sl_price, risk_pct=0.01):
-    try:
-        balance = get_wallet_balance_uta()
-        risk_amount = balance * risk_pct
-        distance = abs(entry_price - sl_price)
-        if distance == 0:
-            return 0.01  # мінімальна qty
-        qty = risk_amount / distance
-        return max(round(qty, 3), 0.01)  # захист
-    except Exception as e:
-        send_telegram_message(f"❌ Qty calculation error: {e}")
-        return 0.01
+def calculate_dynamic_qty(symbol, sl_price, side, risk_percent=1.0):
+    balance = get_wallet_balance_uta()
+    market_price = get_market_price(symbol)
+    if not market_price:
+        send_telegram_message("❌ Невдала спроба отримати ринкову ціну для qty.")
+        return 0
+
+    risk_amount = balance * risk_percent / 100
+
+    if side == "Buy":
+        stop_distance = market_price - sl_price
+    else:
+        stop_distance = sl_price - market_price
+
+    if stop_distance <= 0:
+        send_telegram_message("⚠️ Stop loss відстань ≤ 0. Неможливо розрахувати qty.")
+        return 0
+
+    qty = risk_amount / stop_distance
+
+    # ✅ Мінімальний розмір контракту
+    if qty < 1:
+        qty = 1
+
+    return round(qty, 2)
+
 
 def create_market_order(symbol, side, qty):
     try:
