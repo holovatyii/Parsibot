@@ -192,6 +192,13 @@ def sign_request_post(api_key, api_secret, payload: dict, timestamp: str):
         bytes(sign_payload, "utf-8"),
         hashlib.sha256
     ).hexdigest(), body_str
+def sign_request(api_key, api_secret, query_string, timestamp):
+    message = str(timestamp) + api_key + query_string
+    return hmac.new(
+        bytes(api_secret, "utf-8"),
+        msg=bytes(message, "utf-8"),
+        digestmod=hashlib.sha256
+    ).hexdigest()
 
 
 def cancel_all_close_orders(symbol):
