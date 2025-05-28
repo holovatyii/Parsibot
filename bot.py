@@ -636,9 +636,9 @@ def webhook():
         # Основні параметри
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
-        entry_price = get_market_price(symbol)
         sl_price = float(data.get("sl"))
-        qty = calculate_dynamic_qty(entry_price, sl_price)
+        qty = calculate_dynamic_qty(symbol, sl_price, side)
+        entry_price = get_market_price(symbol)  # можна залишити для логів або TP/SL
         tp = float(data.get("tp"))
         sl = float(data.get("sl"))
         use_trailing = data.get("trailing", False)
