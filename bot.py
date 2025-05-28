@@ -381,7 +381,19 @@ def create_market_order(symbol, side, qty):
             "orderFilter": "Order"
         }
 
-        signature, body_str = sign_request_post(api_key, api_secret, payload, timestamp)
+        # DEBUG: лог тіла перед підписом
+        debug_body = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+        sign_payload = f"{timestamp}{api_key}{debug_body}"
+        signature = hmac.new(
+            bytes(api_secret, "utf-8"),
+            bytes(sign_payload, "utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        # DEBUG повідомлення
+        send_telegram_message(
+            f"🧪 DEBUG SIGNING:\nTimestamp: {timestamp}\nPayload: {debug_body}\nSign Payload: {sign_payload}\nSignature: {signature}"
+        )
 
         headers = {
             "X-BAPI-API-KEY": api_key,
@@ -391,7 +403,7 @@ def create_market_order(symbol, side, qty):
             "Content-Type": "application/json"
         }
 
-        response = requests.post(f"{base_url}/v5/order/create", data=body_str, headers=headers)
+        response = requests.post(f"{base_url}/v5/order/create", data=debug_body, headers=headers)
         status = response.status_code
 
         try:
@@ -413,8 +425,6 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
-
-
 
 
 
