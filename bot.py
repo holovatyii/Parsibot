@@ -275,7 +275,7 @@ def get_price(symbol):
 def get_wallet_balance_uta():
     try:
         timestamp = str(int(time.time() * 1000))
-        url = f"{base_url}/v5/account/wallet-balance"
+        url = f"{base_url}/v5/account/wallet-balance?accountType=UNIFIED"
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-TIMESTAMP": timestamp,
@@ -287,19 +287,17 @@ def get_wallet_balance_uta():
         result = response.json()
 
         if "result" in result and "list" in result["result"]:
-            usdt_balance = next((item for item in result["result"]["list"] if item["coin"] == "USDT"), None)
-            if usdt_balance:
-                return float(usdt_balance.get("equity", 0))
-
-        # Якщо структура інша
-        if "result" in result and "totalEquity" in result["result"]:
-            return float(result["result"]["totalEquity"])
+            account_data = result["result"]["list"][0]
+            usdt_info = next((coin for coin in account_data["coin"] if coin["coin"] == "USDT"), None)
+            if usdt_info:
+                return float(usdt_info.get("equity", 0))
 
         raise ValueError("Unexpected balance format")
 
     except Exception as e:
         send_telegram_message(f"⚠️ Error getting wallet balance: {e}")
         return float(os.environ.get("manual_balance", 10))
+
 
 def get_market_price(symbol):
     try:
