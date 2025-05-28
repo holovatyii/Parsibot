@@ -184,9 +184,14 @@ def is_tp_direction_valid(tp, price, side):
 def is_sl_valid(sl, price):
     return abs(sl - price) / price <= MAX_SL_DISTANCE_PERC
 
-def sign_request(api_key, api_secret, body, timestamp):
-    param_str = f"{timestamp}{api_key}5000{body}"
-    return hmac.new(bytes(api_secret, "utf-8"), msg=bytes(param_str, "utf-8"), digestmod=hashlib.sha256).hexdigest()
+def sign_request(api_key, api_secret, query_string, timestamp):
+    sign_payload = f"{timestamp}{api_key}{query_string}"
+    return hmac.new(
+        bytes(api_secret, "utf-8"),
+        bytes(sign_payload, "utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
 def cancel_all_close_orders(symbol):
     try:
         timestamp = str(int(time.time() * 1000))
@@ -277,21 +282,20 @@ def get_price(symbol):
 def get_wallet_balance_uta():
     try:
         timestamp = str(int(time.time() * 1000))
-        url = f"{base_url}/v5/account/wallet-balance?accountType=UNIFIED"
+        query_string = "accountType=UNIFIED"
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-SIGN": sign_request(api_key, api_secret, "", timestamp),
+            "X-BAPI-SIGN": sign_request(api_key, api_secret, query_string, timestamp),
             "Content-Type": "application/json"
         }
 
+        url = f"{base_url}/v5/account/wallet-balance?{query_string}"
         response = requests.get(url, headers=headers)
         result = response.json()
 
-        # 💬 Telegram дебаг відповіді
         send_telegram_message(f"💡 RAW BALANCE RESPONSE:\n{json.dumps(result, indent=2)}")
 
-        # 📦 Спроба витягнути баланс USDT
         if "result" in result and "list" in result["result"]:
             account_data = result["result"]["list"][0]
             usdt_info = next((coin for coin in account_data["coin"] if coin["coin"] == "USDT"), None)
@@ -303,6 +307,7 @@ def get_wallet_balance_uta():
     except Exception as e:
         send_telegram_message(f"⚠️ Error getting wallet balance: {e}")
         return float(os.environ.get("manual_balance", 10))
+
 
 
 def get_market_price(symbol):
