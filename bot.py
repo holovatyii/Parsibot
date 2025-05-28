@@ -377,14 +377,13 @@ def create_market_order(symbol, side, qty):
             "symbol": symbol,
             "side": side,
             "orderType": "Market",
-            "qty": format(qty, ".2f"),  # ← обов'язково форматування
+            "qty": format(qty, ".2f"),
             "timeInForce": "ImmediateOrCancel",
             "tradeMode": 1,
             "positionIdx": 0,
             "orderFilter": "Order"
         }
 
-        # 🔐 Створення підпису
         body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
         sign_payload = f"{timestamp}{api_key}{body_str}"
         signature = hmac.new(
@@ -401,8 +400,8 @@ def create_market_order(symbol, side, qty):
             "Content-Type": "application/json"
         }
 
-        # 🧾 Надсилання запиту як JSON
-        response = requests.post(f"{base_url}/v5/order/create", json=payload, headers=headers)
+        # 🔥 Повертаємось до data=body_str (ручний JSON)
+        response = requests.post(f"{base_url}/v5/order/create", data=body_str.encode(), headers=headers)
         status = response.status_code
 
         try:
@@ -424,6 +423,7 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
+
 
 def create_take_profit_order(symbol, side, qty, tp):
     try:
