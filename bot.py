@@ -186,12 +186,15 @@ def is_sl_valid(sl, price):
 
 def sign_request_post(api_key, api_secret, payload: dict, timestamp: str):
     body_str = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
+    # ❗ Без RECV-WINDOW в origin string!
     sign_payload = f"{timestamp}{api_key}{body_str}"
-    return hmac.new(
+    signature = hmac.new(
         bytes(api_secret, "utf-8"),
         bytes(sign_payload, "utf-8"),
         hashlib.sha256
-    ).hexdigest(), body_str
+    ).hexdigest()
+    return signature, body_str
+
 def sign_request(api_key, api_secret, query_string, timestamp):
     message = str(timestamp) + api_key + query_string
     return hmac.new(
