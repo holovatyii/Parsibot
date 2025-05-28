@@ -272,6 +272,8 @@ def get_price(symbol):
         print(f"get_price() error: {e}")
     return None
 
+
+
 def get_wallet_balance_uta():
     try:
         timestamp = str(int(time.time() * 1000))
@@ -285,9 +287,11 @@ def get_wallet_balance_uta():
 
         response = requests.get(url, headers=headers)
         result = response.json()
-        send_telegram_message(f"💡 RAW BALANCE RESPONSE: {result}")
 
+        # 💬 Telegram дебаг відповіді
+        send_telegram_message(f"💡 RAW BALANCE RESPONSE:\n{json.dumps(result, indent=2)}")
 
+        # 📦 Спроба витягнути баланс USDT
         if "result" in result and "list" in result["result"]:
             account_data = result["result"]["list"][0]
             usdt_info = next((coin for coin in account_data["coin"] if coin["coin"] == "USDT"), None)
