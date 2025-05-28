@@ -693,8 +693,8 @@ def webhook():
         qty = calculate_dynamic_qty(symbol, sl_price, side)
 
         if qty <= 0:
-        send_telegram_message("❌ Qty <= 0 — сигнал ігнорується.")
-        return {"error": "Invalid qty"}, 400
+            send_telegram_message("❌ Qty <= 0 — сигнал ігнорується.")
+            return {"error": "Invalid qty"}, 400
 
         entry_price = get_market_price(symbol)  # можна залишити для логів або TP/SL
         tp = float(data.get("tp"))
