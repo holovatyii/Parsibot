@@ -377,36 +377,27 @@ def create_market_order(symbol, side, qty):
             "symbol": symbol,
             "side": side,
             "orderType": "Market",
-            "qty": str(qty),
+            "qty": format(qty, ".2f"),  # <-- ключова зміна
             "timeInForce": "ImmediateOrCancel",
-            "tradeMode": 1,         # ← UTA cross
-            "positionIdx": 0,       # ← One-way
+            "tradeMode": 1,
+            "positionIdx": 0,
             "orderFilter": "Order"
         }
 
-        # Підписуємо без recvWindow
         signature, body_str = sign_request_post(api_key, api_secret, payload, timestamp)
+        print(f"📤 Signing payload: {timestamp}{api_key}{body_str}")
 
         headers = {
             "X-BAPI-API-KEY": api_key,
             "X-BAPI-SIGN": signature,
             "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": "5000",  # В хедері – так, але не в підписі!
+            "X-BAPI-RECV-WINDOW": "5000",
             "Content-Type": "application/json"
         }
 
         response = requests.post(f"{base_url}/v5/order/create", data=body_str, headers=headers)
-        status = response.status_code
-
-        try:
-            result = response.json()
-        except Exception as decode_error:
-            send_telegram_message(f"❌ JSON decode error: {decode_error}\nResponse: {response.text}")
-            return None
-
-        log_msg = f"🧾 Market order response ({status}):\n{json.dumps(result, indent=2)}"
-        print(log_msg)
-        send_telegram_message(log_msg)
+        result = response.json()
+        send_telegram_message(f"🧾 Market order response ({response.status_code}):\n{json.dumps(result, indent=2)}")
 
         if result.get("retCode") == 0 and "orderId" in result.get("result", {}):
             return result
@@ -417,9 +408,6 @@ def create_market_order(symbol, side, qty):
     except Exception as e:
         send_telegram_message(f"❌ Market order error: {e}")
         return None
-
-
-
 
 def create_take_profit_order(symbol, side, qty, tp):
     try:
