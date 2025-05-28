@@ -385,7 +385,7 @@ def create_market_order(symbol, side, qty):
             "symbol": symbol,
             "side": side,
             "orderType": "Market",
-            "qty": format(qty, ".2f"),
+            "qty": str(round(qty, 2)),
             "timeInForce": "ImmediateOrCancel",
             "tradeMode": 1,
             "positionIdx": 0,
@@ -689,7 +689,13 @@ def webhook():
         side = data.get("side")
         symbol = data.get("symbol", default_symbol)
         sl_price = float(data.get("sl"))
+
         qty = calculate_dynamic_qty(symbol, sl_price, side)
+
+        if qty <= 0:
+        send_telegram_message("❌ Qty <= 0 — сигнал ігнорується.")
+        return {"error": "Invalid qty"}, 400
+
         entry_price = get_market_price(symbol)  # можна залишити для логів або TP/SL
         tp = float(data.get("tp"))
         sl = float(data.get("sl"))
@@ -700,6 +706,7 @@ def webhook():
         strategy_tag = data.get("strategy_tag", "tv_default")
         order_link_id = data.get("order_link_id", "")
         signal_source = data.get("signal_source", "TradingView")
+
 
         # Закриваємо відкриті ордери
         cancel_all_close_orders(symbol)
