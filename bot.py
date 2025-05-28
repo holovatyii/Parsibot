@@ -285,6 +285,8 @@ def get_wallet_balance_uta():
 
         response = requests.get(url, headers=headers)
         result = response.json()
+        send_telegram_message(f"💡 RAW BALANCE RESPONSE: {result}")
+
 
         if "result" in result and "list" in result["result"]:
             account_data = result["result"]["list"][0]
